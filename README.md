@@ -78,9 +78,25 @@ A container it can't identify still gets a card with its name and status, so
 nothing you've published is invisible. Adding an app is usually 2–3 lines in
 `burrow/apps/`; see the design doc.
 
+## Make it yours
+
+Discovery gets you most of the way. The rest is optional config in
+`burrow.toml` (see [`burrow.example.toml`](burrow.example.toml)):
+
+- `[[card]]`: a card fed by any JSON URL, with fields mapped to labels.
+  Good for home-grown APIs.
+- `[[service]]`: a link card for things discovery can't see, optionally
+  checked for up/down.
+- `[override."app"]` and `[links]`: rename, describe, re-link or hide anything
+  discovered.
+- `[[bookmark]]`, `[weather]` and `search`: links, the weather in the header,
+  and web search from the filter box.
+- `custom.css` / `custom.js` next to the config: your own panels, given a
+  `#panels` slot that Burrow never re-renders.
+
 ## Themes
 
-Midnight (default), Daylight and Ember ship in `burrow/web/themes/`. A theme
+Midnight (default), Daylight, Ember and Forest ship in `burrow/web/themes/`. A theme
 is a single CSS file of variables. Drop in a new one and it appears in the
 picker.
 

@@ -23,7 +23,15 @@ class Config:
     docker: dict = field(default_factory=dict)
     scan: dict = field(default_factory=dict)
     hide: dict = field(default_factory=dict)
-    services: list[dict] = field(default_factory=list)
+    services: list[dict] = field(default_factory=list)      # [[service]] manual cards
+    cards: list[dict] = field(default_factory=list)         # [[card]] JSON-fed cards
+    bookmarks: list[dict] = field(default_factory=list)     # [[bookmark]]
+    overrides: dict[str, dict] = field(default_factory=dict)  # [override."app" | "app@host" | "Name"]
+    links: dict[str, str] = field(default_factory=dict)     # "ip:port" -> URL shown on the card
+    categories: list[str] = field(default_factory=list)     # display order
+    weather: dict = field(default_factory=dict)
+    search: str = ""                                        # "google" | "duckduckgo" | "" (filter only)
+    config_dir: Path = Path("/config")
     secrets: dict[str, dict] = field(default_factory=dict)
     check_interval: float = 15
     identify_interval: float = 300
@@ -55,6 +63,14 @@ def load() -> Config:
         scan=raw.get("scan", {}),
         hide=raw.get("hide", {}),
         services=raw.get("service", []),
+        cards=raw.get("card", []),
+        bookmarks=raw.get("bookmark", []),
+        overrides=raw.get("override", {}),
+        links=raw.get("links", {}),
+        categories=raw.get("categories", []),
+        weather=raw.get("weather", {}),
+        search=raw.get("search", ""),
+        config_dir=path.parent,
         check_interval=float(raw.get("check_interval", 15)),
         identify_interval=float(raw.get("identify_interval", 300)),
     )

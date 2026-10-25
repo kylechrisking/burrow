@@ -1,0 +1,25 @@
+/* name: Forest */
+:root {
+  color-scheme: dark;
+  --bg: #08110d;
+  --bg-glow-1: #10b98126;
+  --bg-glow-2: #84cc161a;
+  --surface: #0f1c16cc;
+  --surface-2: #17281f;
+  --surface-hover: #13241be6;
+  --border: #e6fff012;
+  --border-strong: #e6fff024;
+  --text: #e7f3ec;
+  --text-muted: #8aa597;
+  --accent: #34d399;
+  --accent-2: #a3e635;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --bad: #fb7185;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 0 #ffffff08 inset, 0 10px 30px -12px #000b;
+  --blur: 16px;
+  --font: "Inter", "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+}

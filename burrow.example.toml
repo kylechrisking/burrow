@@ -2,7 +2,9 @@
 # Mount as /config/burrow.toml.
 
 title = "HomeLab"
-theme = "midnight"          # midnight | daylight | ember | any file in web/themes/
+theme = "midnight"          # midnight | daylight | ember | forest | any file in web/themes/
+search = ""                 # "google" | "duckduckgo" | "bing": Enter in the filter box searches the web
+categories = []             # display order, e.g. ["Media", "Downloads", "Network"]
 
 # Proxmox: nodes, guests, storage, and the guest IPs that drive fingerprinting.
 # Token needs only PVEAuditor; see README.
@@ -32,9 +34,49 @@ file = "/secrets/apps.toml"
 apps = []                   # app ids, e.g. ["flaresolverr"]
 names = []                  # card names
 
-# Manual cards for things that cannot be discovered.
+# Header weather from open-meteo (no API key).
+# [weather]
+# label = "Nashville"
+# latitude = 36.16
+# longitude = -86.78
+# units = "imperial"
+
+# Manual cards for things that cannot be discovered. `check` decides up/down
+# (defaults to url; false for a plain link).
 # [[service]]
 # name = "Router"
 # url = "https://192.168.1.1"
+# check = false
 # category = "Network"
 # icon = "ubiquiti"
+# description = "UniFi gateway"
+
+# A card fed by any JSON URL. fields = [[key or "{template}", label], ...]
+# [[card]]
+# name = "Spotify"
+# category = "Overview"
+# url = "https://open.spotify.com"
+# data = "http://192.168.1.20:8000/spotify"
+# fields = [["track", "Track"], ["artist", "Artist"], ["{volume}%", "Volume"]]
+# refresh = 30
+
+# Rename, describe, re-link or hide anything discovered.
+# Keys: app id ("sonarr"), "app@host" ("pihole@pihole2"), or the card's name.
+# [override.sonarr]
+# description = "TV"
+# [override."pihole@pihole2"]
+# name = "Pi-hole 2"
+
+# Friendly links: "ip:port" of a discovered service -> URL on its card.
+# [links]
+# "192.168.1.20:8989" = "http://sonarr.lan"
+
+# [[bookmark]]
+# group = "Admin"
+# name = "Router"
+# abbr = "GW"
+# url = "https://192.168.1.1"
+
+# Your own panels: put custom.css / custom.js next to this file. Burrow serves
+# them and gives custom.js an empty <div id="panels"> it never re-renders, plus a
+# "burrow:render" event (detail = the state) after every refresh.

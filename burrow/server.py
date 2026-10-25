@@ -52,6 +52,11 @@ def make_handler(engine: Engine):
                 return self._json(state)
             if path == "/healthz":
                 return self._send(200, b"ok", "text/plain")
+            if path in ("/custom.css", "/custom.js"):
+                # Your own additions, mounted next to burrow.toml. Empty when absent.
+                f = engine.cfg.config_dir / path.lstrip("/")
+                ctype = "text/css" if path.endswith(".css") else "text/javascript"
+                return self._send(200, f.read_bytes() if f.is_file() else b"", ctype + "; charset=utf-8", "no-cache")
             if path == "/":
                 path = "/index.html"
             f = (WEB / path.lstrip("/")).resolve()

@@ -7,6 +7,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link id="theme-css" rel="stylesheet" href="themes/midnight.css">
   <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="custom.css">
   <script>
     // Apply the saved theme before first paint so there is no flash.
     try { const t = localStorage.getItem("burrow.theme"); if (t) document.getElementById("theme-css").href = `themes/${t}.css`; } catch {}
@@ -24,6 +25,10 @@
           <p id="subtitle" class="muted">Discovering…</p>
         </div>
       </div>
+      <div class="now" aria-live="off">
+        <div class="clock"><b id="time"></b><span id="date" class="muted"></span></div>
+        <div id="weather" class="weather muted" hidden></div>
+      </div>
       <div class="controls">
         <label class="search">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="m21 21-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
@@ -36,12 +41,10 @@
       </div>
     </header>
 
-    <section id="summary" class="summary" aria-label="Summary"></section>
+    <!-- Slot for custom.js panels. Burrow never re-renders it. -->
+    <div id="panels"></div>
 
-    <section class="block" id="cluster-block" hidden>
-      <div class="block-head"><h2>Cluster</h2><span class="count" id="cluster-count"></span></div>
-      <div id="nodes" class="nodes"></div>
-    </section>
+    <section id="summary" class="summary" aria-label="Summary"></section>
 
     <section class="block">
       <div class="block-head">
@@ -51,13 +54,24 @@
       <div id="services"></div>
     </section>
 
+    <section class="block" id="cluster-block" hidden>
+      <div class="block-head"><h2>Cluster</h2><span class="count" id="cluster-count"></span></div>
+      <div id="nodes" class="nodes"></div>
+    </section>
+
     <section class="block" id="hosts-block" hidden>
       <div class="block-head"><h2>Other hosts</h2></div>
       <div id="hosts" class="nodes"></div>
     </section>
 
+    <section class="block" id="bookmarks-block" hidden>
+      <div class="block-head"><h2>Links</h2></div>
+      <div id="bookmarks" class="bookmarks"></div>
+    </section>
+
     <footer id="footer" class="footer"></footer>
   </div>
   <script src="app.js"></script>
+  <script src="custom.js"></script>
 </body>
 </html>

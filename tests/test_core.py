@@ -41,6 +41,15 @@ class Fingerprints(unittest.TestCase):
         self.assertEqual(motd({"text": "A ", "extra": [{"text": "server"}]}), "A server")
 
 
+class Cards(unittest.TestCase):
+    def test_keys_templates_and_dynamic_labels(self):
+        from burrow.engine import _card_stats
+        data = {"a": "698.58 -0.4%", "a_label": "VOO", "media_free_gb": 3327, "clients": 30}
+        stats = _card_stats([["a", "{a_label}"], ["{media_free_gb:,} GB", "Free"], ["clients", "Clients"], ["nope", "Missing"]], data)
+        self.assertEqual([(s.label, s.value) for s in stats],
+                         [("VOO", "698.58 -0.4%"), ("Free", "3,327 GB"), ("Clients", "30"), ("Missing", "")])
+
+
 class Merge(unittest.TestCase):
     def test_docker_engine_folds_into_guest_by_name(self):
         e = Engine(Config())

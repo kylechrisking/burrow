@@ -86,6 +86,10 @@ class Service:
     checked_at: float | None = None
     missing_since: float | None = None
     manual: bool = False
+    description: str | None = None
+    check: str | None = None          # manual cards: URL that decides up/down
+    fields: list | None = None        # [[card]]: [[spec, label], ...]
+    refresh: float = 0                # [[card]]: seconds between fetches (0 = every check)
 
     @property
     def base(self) -> str:

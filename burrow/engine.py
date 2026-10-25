@@ -36,6 +36,7 @@ class Engine:
         self.changed = threading.Event()
         self.gateway = net.default_gateway()
         self.identified_at: float | None = None
+        self.weather: dict | None = None
         self.started = time.time()
 
     # ---- loops -------------------------------------------------------------
@@ -46,6 +47,8 @@ class Engine:
             threading.Thread(target=self._provider_loop, args=(p,), daemon=True, name=p.name).start()
         threading.Thread(target=self._identify_loop, daemon=True, name="identify").start()
         threading.Thread(target=self._check_loop, daemon=True, name="check").start()
+        if self.cfg.weather.get("latitude") is not None:
+            threading.Thread(target=self._weather_loop, daemon=True, name="weather").start()
 
     def _provider_loop(self, p) -> None:
         while True:
@@ -213,16 +216,24 @@ class Engine:
         )
 
     def _manual_services(self) -> list[Service]:
+        """[[service]] link cards and [[card]] JSON-fed cards from the config.
+        `check` is the URL whose answer decides up/down (defaults to `url`;
+        false means none); a card's `data` URL doubles as its check."""
         out = []
-        for d in self.cfg.services:
-            if not d.get("name") or not d.get("url"):
-                continue
-            u = urlparse(d["url"])
-            out.append(Service(
-                id=f"manual:{d['name']}", app="manual", name=d["name"], category=d.get("category", "Links"),
-                icon=d.get("icon", d["name"].lower()), host_id=None, address=u.hostname or "",
-                port=u.port or (443 if u.scheme == "https" else 80), scheme=u.scheme, url=d["url"], manual=True,
-            ))
+        for kind, items in (("manual", self.cfg.services), ("card", self.cfg.cards)):
+            for d in items:
+                if not d.get("name"):
+                    continue
+                check = d.get("data") if kind == "card" else d.get("check", d.get("url"))
+                u = urlparse(check or d.get("url") or "")
+                out.append(Service(
+                    id=f"{kind}:{d['name']}", app=kind, name=d["name"], category=d.get("category", "Links"),
+                    icon=d.get("icon", d["name"].lower()), host_id=None, address=u.hostname or "",
+                    port=u.port or (443 if u.scheme == "https" else 80), scheme=u.scheme or "http",
+                    url=d.get("url"), description=d.get("description"), check=check or None,
+                    fields=[list(f) for f in d.get("fields", [])], refresh=float(d.get("refresh", 0)),
+                    manual=True,
+                ))
         return out
 
     # ---- checks -------------------------------------------------------------
@@ -230,8 +241,20 @@ class Engine:
     def _check(self, s: Service) -> None:
         try:
             if s.manual:
-                r = net.request(s.url, timeout=5)
-                s.status, s.latency_ms = ("up" if r.status < 500 else "down"), r.elapsed_ms
+                if s.refresh and s.checked_at and time.time() - s.checked_at < s.refresh:
+                    return
+                if not s.check:
+                    s.status = "unknown"   # a plain link: nothing to check
+                elif s.app == "card":
+                    r = net.request(s.check, timeout=8, headers={"Accept": "application/json"})
+                    data = r.json() if r.status < 400 else None
+                    s.status, s.latency_ms = ("up" if isinstance(data, dict) else "down"), r.elapsed_ms
+                    s.error = None if data is not None else f"HTTP {r.status}" if r.status >= 400 else "not JSON"
+                    if isinstance(data, dict):
+                        s.stats = _card_stats(s.fields or [[k, k] for k in list(data)[:4]], data)
+                else:
+                    r = net.request(s.check, timeout=5)
+                    s.status, s.latency_ms = ("up" if r.status < 500 else "down"), r.elapsed_ms
             elif s.app == "container":
                 t0 = time.monotonic()
                 up = net.tcp_open(s.address, s.port, timeout=2)
@@ -239,7 +262,7 @@ class Engine:
                 s.latency_ms = int((time.monotonic() - t0) * 1000) if up else None
             else:
                 self._check_app(s)
-            s.error = None if s.status == "up" else (s.error or "no response")
+            s.error = None if s.status != "down" else (s.error or "no response")
         except Exception as e:
             s.status, s.error = "down", str(e)[:160]
         s.checked_at = time.time()
@@ -287,10 +310,18 @@ class Engine:
         svc_out = []
         for s in services:
             d = s.to_dict()
+            for k in ("check", "fields", "refresh", "missing_since"):
+                d.pop(k, None)
             h = hosts.get(s.host_id)
             d["host"] = h.name if h else None
-            if dupes[s.name] > 1:
+            if dupes[s.name] > 1 and not s.manual:
                 d["name"] = f"{s.name} · {d['host']}" if len(same_host[s.name]) > 1 and d["host"] else f"{s.name} :{s.port}"
+            if not s.manual and f"{s.address}:{s.port}" in self.cfg.links:
+                d["url"] = self.cfg.links[f"{s.address}:{s.port}"]
+            o = self._override(s, d)
+            if o.get("hide"):
+                continue
+            d.update({k: o[k] for k in ("name", "description", "url", "category", "icon") if k in o})
             svc_out.append(d)
 
         nodes = sorted((h for h in hosts.values() if h.kind == "node"), key=lambda h: h.name)
@@ -320,14 +351,80 @@ class Engine:
                 "guests_running": sum(g.status == "running" for g in guest_list),
                 "containers": len(containers),
                 "containers_running": sum(c.state == "running" for c in containers),
-                "services": len(services),
-                "services_up": sum(s.status == "up" for s in services),
+                "services": sum(d["status"] in ("up", "down") for d in svc_out),
+                "services_up": sum(d["status"] == "up" for d in svc_out),
             },
             "nodes": node_out,
             "hosts": [h.to_dict() for h in sorted(others, key=lambda h: h.name)],
             "services": sorted(svc_out, key=lambda d: (d["category"], d["name"].lower())),
+            "categories": self.cfg.categories,
+            "bookmarks": self.cfg.bookmarks,
+            "weather": self.weather,
+            "search": self.cfg.search,
             "providers": list(self.pstatus.values()),
         }
+
+    def _override(self, s: Service, d: dict) -> dict:
+        """[override."<key>"] from the config, most specific key first:
+        "app@host", the card's display name, then the app id."""
+        ov = self.cfg.overrides
+        for key in (f"{s.app}@{d['host']}", d["name"], s.name, s.app):
+            if key in ov:
+                return ov[key]
+        return {}
+
+    # ---- weather -------------------------------------------------------------
+
+    def _weather_loop(self) -> None:
+        w = self.cfg.weather
+        imperial = w.get("units", "metric") == "imperial"
+        q = (f"latitude={w['latitude']}&longitude={w['longitude']}&timezone=auto&forecast_days=1"
+             "&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min"
+             + ("&temperature_unit=fahrenheit" if imperial else ""))
+        while True:
+            try:
+                j = net.get_json(f"https://api.open-meteo.com/v1/forecast?{q}", timeout=10)
+                cur, day = j["current"], j["daily"]
+                self.weather = {
+                    "label": w.get("label", ""), "unit": "°F" if imperial else "°C",
+                    "temp": round(cur["temperature_2m"]), "text": _wmo(cur["weather_code"]),
+                    "high": round(day["temperature_2m_max"][0]), "low": round(day["temperature_2m_min"][0]),
+                }
+            except Exception as e:
+                log.info("weather: %s", e)
+            time.sleep(900)
+
+
+def _wmo(code: int) -> str:
+    """WMO weather code -> words (open-meteo's `weather_code`)."""
+    for codes, text in (((0,), "Clear"), ((1,), "Mostly clear"), ((2,), "Partly cloudy"), ((3,), "Cloudy"),
+                        ((45, 48), "Fog"), ((51, 53, 55, 56, 57), "Drizzle"), ((61, 63, 65, 66, 67), "Rain"),
+                        ((71, 73, 75, 77), "Snow"), ((80, 81, 82), "Showers"), ((85, 86), "Snow showers"),
+                        ((95, 96, 99), "Thunderstorms")):
+        if code in codes:
+            return text
+    return ""
+
+
+class _Blank(dict):
+    def __missing__(self, key):
+        return ""
+
+
+def _card_stats(fields: list, data: dict) -> list[Stat]:
+    """fields: [[spec, label], ...]. A spec is a JSON key, or a template such
+    as "{media_free_gb} GB"; labels may be templates too ("{a_label}")."""
+    flat = _Blank({k: ("" if v is None else v) for k, v in data.items()})
+    out = []
+    for f in fields:
+        spec, label = (f + [f[0]])[:2]
+        value = spec.format_map(flat) if "{" in spec else flat[spec]
+        if isinstance(value, float):
+            value = f"{value:,.1f}"
+        elif isinstance(value, int) and not isinstance(value, bool):
+            value = f"{value:,}"
+        out.append(Stat(label.format_map(flat) if "{" in label else label, str(value)))
+    return out
 
 
 def _one_per_host(found: list[Service]) -> list[Service]:

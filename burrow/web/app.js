@@ -114,13 +114,15 @@ function hostCard(h, svcByHost) {
 }
 
 function serviceCard(s) {
-  const where = [s.host, s.port && s.scheme !== "manual" ? `:${s.port}` : null].filter(Boolean).join(" ");
+  const where = s.manual ? "" : [s.host, s.port ? `:${s.port}` : null].filter(Boolean).join(" ");
+  const sub = s.description || where;
   const stats = (s.stats || []).slice(0, 4).map((st) => {
     const wide = String(st.value).length > 14;
     return `<div class="stat ${esc(st.tone)} ${wide ? "wide" : ""}"><div class="k">${esc(st.label)}</div><div class="v" title="${esc(st.value)}">${esc(st.value)}</div></div>`;
   }).join("");
-  const latency = s.status === "up" && s.latency_ms != null ? `${s.latency_ms} ms` : s.status;
+  const latency = s.status === "unknown" ? "" : s.status === "up" && s.latency_ms != null ? `${s.latency_ms} ms` : s.status;
   const foot = [
+    s.description && where ? `<span class="tag">${esc(where)}</span>` : "",
     s.version ? `<span class="tag">v${esc(String(s.version).replace(/^v/, ""))}</span>` : "",
     s.container && s.container.toLowerCase() !== s.name.toLowerCase() ? `<span class="tag">${esc(s.container)}</span>` : "",
     s.status === "down" && s.error ? `<span class="note">${esc(s.error)}</span>` : s.note ? `<span class="note">${esc(s.note)}</span>` : "",
@@ -129,16 +131,17 @@ function serviceCard(s) {
   const href = s.url ? ` href="${esc(s.url)}" target="_blank" rel="noopener"` : "";
   return `<${tag} class="card svc ${esc(s.status)}"${href}>
     <div class="svc-head">${icon(s.icon, s.name)}
-      <div class="svc-title"><b>${esc(s.name)}</b><span class="mono">${esc(where)}</span></div>
-      <div class="status"><span class="dot ${esc(s.status)}"></span>${esc(latency)}</div></div>
+      <div class="svc-title"><b>${esc(s.name)}</b><span class="${s.description ? "" : "mono"}" title="${esc(sub)}">${esc(sub)}</span></div>
+      ${s.status === "unknown" ? `<div class="status link">↗</div>` : `<div class="status"><span class="dot ${esc(s.status)}"></span>${esc(latency)}</div>`}</div>
     ${stats ? `<div class="stats">${stats}</div>` : ""}
     ${foot ? `<div class="svc-foot">${foot}</div>` : ""}
   </${tag}>`;
 }
 
 function renderCats(services) {
+  const order = [...(state.categories || []), ...CAT_ORDER];
   const cats = [...new Set(services.map((s) => s.category))].sort((a, b) => {
-    const ia = CAT_ORDER.indexOf(a), ib = CAT_ORDER.indexOf(b);
+    const ia = order.indexOf(a), ib = order.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
   });
   if (category !== "All" && !cats.includes(category)) category = "All";
@@ -173,7 +176,7 @@ function render() {
   const cats = renderCats(st.services);
   const visible = st.services.filter((s) =>
     (category === "All" || s.category === category) &&
-    matches(s.name, s.app, s.host, s.address, s.container, s.category));
+    matches(s.name, s.app, s.host, s.address, s.container, s.category, s.description));
   $("#svc-count").textContent = `${st.summary.services_up} / ${st.summary.services} up`;
   if (!st.services.length) {
     $("#services").innerHTML = `<div class="empty">${st.identified_at ? "No services found yet. Mount the Docker socket, or add a Proxmox token, then give it a minute." : "Probing the lab…"}</div>`;
@@ -188,11 +191,48 @@ function render() {
     }).join("");
   }
 
+  const bm = st.bookmarks || [];
+  $("#bookmarks-block").hidden = !bm.length;
+  const groups = [...new Set(bm.map((b) => b.group || "Links"))];
+  $("#bookmarks").innerHTML = groups.map((g) => `<div class="bm-group"><h4>${esc(g)}</h4><div class="bm-list">${
+    bm.filter((b) => (b.group || "Links") === g && matches(b.name, b.url, g)).map((b) =>
+      `<a class="bm" href="${esc(b.url)}" target="_blank" rel="noopener"><span class="abbr">${esc(b.abbr || b.name.slice(0, 2))}</span>${esc(b.name)}</a>`).join("")
+  }</div></div>`).join("");
+
+  const w = st.weather;
+  $("#weather").hidden = !w;
+  if (w) $("#weather").textContent = `${w.temp}${w.unit} ${w.text} · H ${w.high}° L ${w.low}°${w.label ? ` · ${w.label}` : ""}`;
+  $("#q").placeholder = st.search ? "Filter, or Enter to search the web" : "Filter";
+
   $("#footer").innerHTML = st.providers.map((p) =>
     `<span class="prov ${p.ok === false ? "err" : ""}" title="${esc(p.error || "")}">
       <span class="dot ${p.ok ? "up" : p.ok === false ? "down" : ""}"></span>${esc(p.name)}${p.detail ? ` · ${esc(p.detail)}` : ""}${p.ok === false ? ` · ${esc(p.error)}` : ""}</span>`
-  ).join("") + `<span class="spacer"></span><span>burrow · read-only</span>`;
+  ).join("") + `<span class="spacer"></span><span>Burrow · read-only</span>`;
+
+  // Extensions (custom.js) can listen for this and read the state.
+  document.dispatchEvent(new CustomEvent("burrow:render", { detail: st }));
 }
+
+// ---- clock + web search -------------------------------------------------------
+
+function tick() {
+  const now = new Date();
+  $("#time").textContent = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  $("#date").textContent = now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+}
+tick();
+setInterval(tick, 10000);
+
+const SEARCH = {
+  google: "https://www.google.com/search?q=",
+  duckduckgo: "https://duckduckgo.com/?q=",
+  bing: "https://www.bing.com/search?q=",
+};
+$("#q").addEventListener("keydown", (e) => {
+  const url = SEARCH[state?.search];
+  if (e.key !== "Enter" || !url || !e.target.value.trim()) return;
+  window.open(url + encodeURIComponent(e.target.value.trim()), "_blank", "noopener");
+});
 
 // ---- themes ----------------------------------------------------------------
 
