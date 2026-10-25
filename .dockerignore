@@ -1,0 +1,7 @@
+.git
+config
+secrets
+docs
+screenshots
+tests
+**/__pycache__

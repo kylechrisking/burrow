@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>HomeLab</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link id="theme-css" rel="stylesheet" href="themes/midnight.css">
+  <link rel="stylesheet" href="app.css">
+  <script>
+    // Apply the saved theme before first paint so there is no flash.
+    try { const t = localStorage.getItem("labdash.theme"); if (t) document.getElementById("theme-css").href = `themes/${t}.css`; } catch {}
+  </script>
+</head>
+<body>
+  <div class="page">
+    <header class="top">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M4 5h7v6H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 13h7v6H4z"/></svg>
+        </div>
+        <div>
+          <h1 id="title">HomeLab</h1>
+          <p id="subtitle" class="muted">Discovering…</p>
+        </div>
+      </div>
+      <div class="controls">
+        <label class="search">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="m21 21-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
+          <input id="q" type="search" placeholder="Filter" autocomplete="off" aria-label="Filter services and hosts">
+        </label>
+        <label class="theme-pick" title="Theme">
+          <span class="swatch" aria-hidden="true"></span>
+          <select id="theme" aria-label="Theme"></select>
+        </label>
+      </div>
+    </header>
+
+    <section id="summary" class="summary" aria-label="Summary"></section>
+
+    <section class="block" id="cluster-block" hidden>
+      <div class="block-head"><h2>Cluster</h2><span class="count" id="cluster-count"></span></div>
+      <div id="nodes" class="nodes"></div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <h2>Services</h2><span class="count" id="svc-count"></span>
+        <nav id="cats" class="cats" aria-label="Categories"></nav>
+      </div>
+      <div id="services"></div>
+    </section>
+
+    <section class="block" id="hosts-block" hidden>
+      <div class="block-head"><h2>Other hosts</h2></div>
+      <div id="hosts" class="nodes"></div>
+    </section>
+
+    <footer id="footer" class="footer"></footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

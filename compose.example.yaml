@@ -1,0 +1,12 @@
+services:
+  lab-dashboard:
+    build: .
+    # image: ghcr.io/<you>/lab-dashboard:latest   # once published
+    container_name: lab-dashboard
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # optional: local Docker discovery
+      - ./config:/config:ro                            # optional: labdash.toml
+      - ./secrets:/secrets:ro                          # optional: proxmox.token, apps.toml (chmod 600)

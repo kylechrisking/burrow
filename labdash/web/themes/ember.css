@@ -1,0 +1,25 @@
+/* name: Ember */
+:root {
+  color-scheme: dark;
+  --bg: #120d0b;
+  --bg-glow-1: #f9731629;
+  --bg-glow-2: #e11d481c;
+  --surface: #1c1513cc;
+  --surface-2: #2a201c;
+  --surface-hover: #241b18e6;
+  --border: #ffedd512;
+  --border-strong: #ffedd524;
+  --text: #f6ece6;
+  --text-muted: #a8948a;
+  --accent: #fb923c;
+  --accent-2: #f43f5e;
+  --ok: #84cc16;
+  --warn: #facc15;
+  --bad: #f87171;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 0 #ffffff08 inset, 0 12px 32px -14px #000c;
+  --blur: 12px;
+  --font: "Inter", "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
