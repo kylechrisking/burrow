@@ -133,7 +133,7 @@ class Engine:
                 continue
             ports = [e.port]
             if e.port == 0:  # host-networked container: try its app's default port
-                ports = [a.ports[0] for a in apps.candidates(0, e.hint, e.labels.get("labdash.app"))[:1] if a.ports]
+                ports = [a.ports[0] for a in apps.candidates(0, e.hint, e.labels.get("burrow.app"))[:1] if a.ports]
             for port in ports:
                 targets[(addr, port)] = {"host": h.id if h else None, "ep": e, "linkable": bool(h and h.address)}
 
@@ -178,7 +178,7 @@ class Engine:
         addr, port = key
         e: Endpoint | None = t["ep"]
         hint = e.hint if e else ""
-        forced = e.labels.get("labdash.app") if e else None
+        forced = e.labels.get("burrow.app") if e else None
         for app in apps.candidates(port, hint, forced):
             pr = apps.probe(app, addr, port, cache)
             if pr is None:
@@ -191,10 +191,10 @@ class Engine:
             got = apps.fetch(addr, port, "/", "http", cache)
             image = e.hint.split()[0].split("/")[-1].split(":")[0]
             return Service(
-                id=f"{addr}:{port}", app="container", name=e.labels.get("labdash.name") or e.container,
+                id=f"{addr}:{port}", app="container", name=e.labels.get("burrow.name") or e.container,
                 category="Containers", icon=image, host_id=t["host"], address=addr, port=port,
                 scheme=got[0] if got else "tcp", container=e.container,
-                url=e.labels.get("labdash.url") or (f"{got[0]}://{addr}:{port}" if got and t["linkable"] else None),
+                url=e.labels.get("burrow.url") or (f"{got[0]}://{addr}:{port}" if got and t["linkable"] else None),
                 status="up", latency_ms=got[1].elapsed_ms if got else None,
             )
         return None
@@ -202,11 +202,11 @@ class Engine:
     def _service(self, app, addr, port, t, pr) -> Service:
         e: Endpoint | None = t["ep"]
         labels = e.labels if e else {}
-        url = labels.get("labdash.url")
+        url = labels.get("burrow.url")
         if not url and t["linkable"] and app.kind == "http":
             url = f"{pr.scheme}://{addr}:{port}{app.link_path}"
         return Service(
-            id=f"{addr}:{port}", app=app.id, name=labels.get("labdash.name") or app.name,
+            id=f"{addr}:{port}", app=app.id, name=labels.get("burrow.name") or app.name,
             category=app.category, icon=app.icon, host_id=t["host"], address=addr, port=port,
             scheme=pr.scheme, url=url, container=e.container if e else None,
             status="up", latency_ms=pr.latency_ms, version=pr.version,
@@ -335,7 +335,14 @@ def _one_per_host(found: list[Service]) -> list[Service]:
     service: keep the Docker-sourced one, else the app's preferred port."""
     best: dict[tuple, Service] = {}
     out = []
-    for s in found:
+    # A container that already has a named app (Caddy on :80, qBittorrent inside gluetun)
+    # needs no extra "unknown port" cards; an unnamed container gets one card, not one per port.
+    named = {(s.host_id, s.container) for s in found if s.app != "container" and s.container}
+    for s in sorted(found, key=lambda s: s.port):
+        if s.app == "container":
+            if (s.host_id, s.container) not in named and ("c", s.host_id, s.container) not in best:
+                best[("c", s.host_id, s.container)] = s
+            continue
         app = REGISTRY.get(s.app)
         if app is None or app.multi:
             out.append(s)

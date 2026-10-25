@@ -1,6 +1,4 @@
-# lab-dashboard — design
-
-*Working title. Name ideas are at the end.*
+# Burrow — design
 
 ## What it is
 
@@ -11,7 +9,7 @@ You do not write a service list.
 
 ## Why another dashboard
 
-| | Homepage | Homarr | Dashy | **lab-dashboard** |
+| | Homepage | Homarr | Dashy | **burrow** |
 |---|---|---|---|---|
 | How services get on the page | YAML per service, or Docker labels on each container | Drag-and-drop UI, stored in its DB | YAML/UI per item | **Discovered**: Proxmox guests + Docker ports + fingerprinting |
 | Proxmox | One widget showing totals | Integration widget | Status-check only | Cluster is the backbone: nodes, guests, storage, and the guest IPs that drive probing |
@@ -83,7 +81,7 @@ project grows.
 
 ## Discovery providers
 
-A provider is one self-contained module in `labdash/providers/`. It never
+A provider is one self-contained module in `burrow/providers/`. It never
 writes to the thing it reads.
 
 ```python
@@ -114,7 +112,7 @@ Shipped providers:
 | Provider | Turns on when | Reads |
 |---|---|---|
 | `proxmox` | `[proxmox] url` and a token file exist | `/cluster/resources` (nodes, guests, storage), `/cluster/status` (node IPs), guest IPs from LXC `interfaces`, the QEMU guest agent, or `net0 ip=` in the config. Needs only the **PVEAuditor** role. |
-| `docker` | the socket is mounted, or `[docker] endpoints` is set | `/info`, `/containers/json`. Published ports become endpoints, the image name becomes the hint, and `labdash.*` labels act as overrides. Read-only; use a socket proxy for remote engines. |
+| `docker` | the socket is mounted, or `[docker] endpoints` is set | `/info`, `/containers/json`. Published ports become endpoints, the image name becomes the hint, and `burrow.*` labels act as overrides. Read-only; use a socket proxy for remote engines. |
 | `static` | `[scan] hosts` is set | Plain IPs or hostnames to fingerprint, for things outside Proxmox and Docker (a NAS, a Pi). |
 
 Adding a provider means adding a file and one line in `providers/__init__.py`.
@@ -123,7 +121,7 @@ TrueNAS, libvirt, and mDNS.
 
 ## App fingerprints
 
-An app is a small declaration in `labdash/apps/`. Most need no code:
+An app is a small declaration in `burrow/apps/`. Most need no code:
 
 ```python
 App(
@@ -186,7 +184,7 @@ in `app.css`, which only consumes variables, so a theme cannot break the layout.
 
 The first line `/* name: ... */` is the display name. The server lists
 `web/themes/*.css`, so dropping a file in makes it selectable. You can mount a
-folder at `/app/labdash/web/themes/custom/` for your own themes. Shipped themes:
+folder at `/app/burrow/web/themes/custom/` for your own themes. Shipped themes:
 **Midnight** (dark, the default), **Daylight** (light) and **Ember** (warm dark).
 The choice is kept per browser, and the default comes from the config.
 
@@ -221,7 +219,7 @@ apps = ["flaresolverr"]
 ```
 
 Docker labels on a container override what discovery guessed:
-`labdash.name`, `labdash.app`, `labdash.url`, `labdash.hide=true`.
+`burrow.name`, `burrow.app`, `burrow.url`, `burrow.hide=true`.
 
 ## Security posture
 
@@ -239,13 +237,14 @@ Docker labels on a container override what discovery guessed:
 - Self-hosted icons for offline labs. Icons come from the dashboard-icons CDN
   for now, with a monogram fallback.
 - History and sparklines (a small ring buffer per stat).
-- More fingerprints, plus a `labdash identify <url>` CLI to help contributors
+- More fingerprints, plus a `burrow identify <url>` CLI to help contributors
   write them.
 - Proxmox backup, ZFS pool health and SMART, all of which still fit under PVEAuditor.
 - A Go port, if a single binary becomes worth more than hackability.
 
-## Name ideas
+## Name
 
-`lab-dashboard` is descriptive but generic. Some options, which need checking
-against GitHub and Docker Hub before use: **Labscope**, **Burrow**,
-**Proxview**, **Homelab Atlas**, **Signalboard**.
+**Burrow**, chosen 2026-10-24. It digs through your lab and finds what's living
+in there. The working title was `lab-dashboard`. Identifiers follow the name:
+the `burrow` package, `BURROW_*` environment variables, `burrow.*` Docker labels
+and `burrow.toml`.

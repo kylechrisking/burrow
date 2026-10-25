@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 
-USER_AGENT = "lab-dashboard/0.1 (+https://github.com/)"
+USER_AGENT = "burrow/0.1 (+https://github.com/)"
 
 _insecure = ssl.create_default_context()
 _insecure.check_hostname = False

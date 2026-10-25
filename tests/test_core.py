@@ -1,13 +1,13 @@
 """Offline tests: fingerprint matching, candidate ordering, host merging. python -m unittest"""
 import unittest
 
-from labdash import apps
-from labdash.apps.base import REGISTRY
-from labdash.apps.minecraft import _varint, motd
-from labdash.config import Config
-from labdash.engine import Engine
-from labdash.model import Container, Endpoint, Host, Inventory
-from labdash.net import Response
+from burrow import apps
+from burrow.apps.base import REGISTRY
+from burrow.apps.minecraft import _varint, motd
+from burrow.config import Config
+from burrow.engine import Engine
+from burrow.model import Container, Endpoint, Host, Inventory
+from burrow.net import Response
 
 
 def resp(body: str, status=200, headers=None):

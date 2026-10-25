@@ -1,4 +1,4 @@
-"""python -m labdash"""
+"""python -m burrow"""
 from __future__ import annotations
 
 import logging
@@ -10,7 +10,7 @@ from .server import serve
 
 
 def main() -> None:
-    logging.basicConfig(level=os.environ.get("LABDASH_LOG", "INFO").upper(),
+    logging.basicConfig(level=os.environ.get("BURROW_LOG", "INFO").upper(),
                         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
     cfg = config.load()
     engine = Engine(cfg)

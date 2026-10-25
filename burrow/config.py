@@ -38,7 +38,7 @@ def _read_toml(path: Path) -> dict:
 
 
 def load() -> Config:
-    path = Path(os.environ.get("LABDASH_CONFIG", "/config/labdash.toml"))
+    path = Path(os.environ.get("BURROW_CONFIG", "/config/burrow.toml"))
     raw: dict = {}
     if path.is_file():
         raw = _read_toml(path)
@@ -60,19 +60,19 @@ def load() -> Config:
     )
 
     env = os.environ
-    cfg.title = env.get("LABDASH_TITLE", cfg.title)
-    cfg.theme = env.get("LABDASH_THEME", cfg.theme)
-    cfg.port = int(env.get("LABDASH_PORT", cfg.port))
-    if env.get("LABDASH_PROXMOX_URL"):
-        cfg.proxmox["url"] = env["LABDASH_PROXMOX_URL"]
-    if env.get("LABDASH_PROXMOX_TOKEN_FILE"):
-        cfg.proxmox["token_file"] = env["LABDASH_PROXMOX_TOKEN_FILE"]
-    if env.get("LABDASH_DOCKER"):
-        cfg.docker["endpoints"] = [e.strip() for e in env["LABDASH_DOCKER"].split(",") if e.strip()]
-    if env.get("LABDASH_SCAN"):
-        cfg.scan["hosts"] = [h.strip() for h in env["LABDASH_SCAN"].split(",") if h.strip()]
+    cfg.title = env.get("BURROW_TITLE", cfg.title)
+    cfg.theme = env.get("BURROW_THEME", cfg.theme)
+    cfg.port = int(env.get("BURROW_PORT", cfg.port))
+    if env.get("BURROW_PROXMOX_URL"):
+        cfg.proxmox["url"] = env["BURROW_PROXMOX_URL"]
+    if env.get("BURROW_PROXMOX_TOKEN_FILE"):
+        cfg.proxmox["token_file"] = env["BURROW_PROXMOX_TOKEN_FILE"]
+    if env.get("BURROW_DOCKER"):
+        cfg.docker["endpoints"] = [e.strip() for e in env["BURROW_DOCKER"].split(",") if e.strip()]
+    if env.get("BURROW_SCAN"):
+        cfg.scan["hosts"] = [h.strip() for h in env["BURROW_SCAN"].split(",") if h.strip()]
 
-    secrets_file = env.get("LABDASH_SECRETS_FILE") or raw.get("secrets", {}).get("file") or "/secrets/apps.toml"
+    secrets_file = env.get("BURROW_SECRETS_FILE") or raw.get("secrets", {}).get("file") or "/secrets/apps.toml"
     sp = Path(secrets_file)
     if sp.is_file():
         cfg.secrets = _read_toml(sp)

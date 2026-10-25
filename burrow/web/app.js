@@ -15,7 +15,7 @@ const store = {
 
 let state = null;
 let lastJson = "";
-let category = store.get("labdash.cat") || "All";
+let category = store.get("burrow.cat") || "All";
 let query = "";
 
 // ---- formatting ------------------------------------------------------------
@@ -191,7 +191,7 @@ function render() {
   $("#footer").innerHTML = st.providers.map((p) =>
     `<span class="prov ${p.ok === false ? "err" : ""}" title="${esc(p.error || "")}">
       <span class="dot ${p.ok ? "up" : p.ok === false ? "down" : ""}"></span>${esc(p.name)}${p.detail ? ` · ${esc(p.detail)}` : ""}${p.ok === false ? ` · ${esc(p.error)}` : ""}</span>`
-  ).join("") + `<span class="spacer"></span><span>lab-dashboard · read-only</span>`;
+  ).join("") + `<span class="spacer"></span><span>burrow · read-only</span>`;
 }
 
 // ---- themes ----------------------------------------------------------------
@@ -199,12 +199,12 @@ function render() {
 function setupThemes(themes, fallback) {
   const sel = $("#theme");
   if (sel.options.length === themes.length) return;
-  const current = store.get("labdash.theme") || fallback;
+  const current = store.get("burrow.theme") || fallback;
   sel.innerHTML = themes.map((t) => `<option value="${esc(t.id)}" ${t.id === current ? "selected" : ""}>${esc(t.name)}</option>`).join("");
-  if (!store.get("labdash.theme")) $("#theme-css").href = `themes/${fallback}.css`;
+  if (!store.get("burrow.theme")) $("#theme-css").href = `themes/${fallback}.css`;
 }
 $("#theme").addEventListener("change", (e) => {
-  store.set("labdash.theme", e.target.value);
+  store.set("burrow.theme", e.target.value);
   $("#theme-css").href = `themes/${e.target.value}.css`;
 });
 
@@ -214,7 +214,7 @@ $("#cats").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-cat]");
   if (!b) return;
   category = b.dataset.cat;
-  store.set("labdash.cat", category);
+  store.set("burrow.cat", category);
   render();
 });
 $("#q").addEventListener("input", (e) => { query = e.target.value.trim().toLowerCase(); render(); });

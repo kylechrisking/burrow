@@ -5,7 +5,7 @@ Endpoints are "unix:///var/run/docker.sock" (auto-detected when mounted) or
 front with CONTAINERS=1 INFO=1, so nothing can write.
 
 Labels on a container override discovery:
-    labdash.name, labdash.app, labdash.url, labdash.hide=true
+    burrow.name, burrow.app, burrow.url, burrow.hide=true
 """
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ class DockerProvider(Provider):
                 continue
             name = (c.get("Names") or ["?"])[0].lstrip("/")
             labels = c.get("Labels") or {}
-            if labels.get("labdash.hide", "").lower() == "true":
+            if labels.get("burrow.hide", "").lower() == "true":
                 continue
             state = c.get("State", "")
             running += state == "running"
@@ -94,7 +94,7 @@ class DockerProvider(Provider):
                 seen.add(pub)
                 endpoints.append(Endpoint(hid, pub, hint=f"{image} {name}", container=name,
                                           labels=labels, source=self.name))
-            if not seen and state == "running" and (labels.get("labdash.app") or c.get("HostConfig", {}).get("NetworkMode") == "host"):
+            if not seen and state == "running" and (labels.get("burrow.app") or c.get("HostConfig", {}).get("NetworkMode") == "host"):
                 # host-networked: no published ports, let the hint pick the app's default port
                 endpoints.append(Endpoint(hid, 0, hint=f"{image} {name}", container=name,
                                           labels=labels, source=self.name))

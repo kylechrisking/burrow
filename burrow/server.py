@@ -27,7 +27,7 @@ def list_themes() -> list[dict]:
 
 def make_handler(engine: Engine):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "lab-dashboard"
+        server_version = "burrow"
 
         def log_message(self, fmt, *args):
             log.debug("%s %s", self.address_string(), fmt % args)

@@ -1,4 +1,4 @@
-# lab-dashboard
+# Burrow
 
 A homelab dashboard that **finds what's running on its own**. Point it at your
 Proxmox cluster and your Docker hosts. It lists the nodes, guests and containers,
@@ -14,7 +14,7 @@ There is no service list to write. One container, no dependencies, themeable.
 ## Quickstart
 
 ```bash
-git clone https://github.com/<you>/lab-dashboard && cd lab-dashboard
+git clone https://github.com/<you>/burrow && cd burrow
 docker compose -f compose.example.yaml up -d --build
 ```
 
@@ -27,12 +27,12 @@ Create a **read-only** API token on any node. PVEAuditor can see everything
 and change nothing, and no new user is needed:
 
 ```bash
-pveum user token add root@pam labdash --privsep 1
-pveum acl modify / --tokens 'root@pam!labdash' --roles PVEAuditor
+pveum user token add root@pam burrow --privsep 1
+pveum acl modify / --tokens 'root@pam!burrow' --roles PVEAuditor
 ```
 
-Save `root@pam!labdash=<secret>` as `secrets/proxmox.token` (`chmod 600`), then
-create `config/labdash.toml`:
+Save `root@pam!burrow=<secret>` as `secrets/proxmox.token` (`chmod 600`), then
+create `config/burrow.toml`:
 
 ```toml
 [proxmox]
@@ -61,8 +61,8 @@ with `CONTAINERS=1 INFO=1` on each one, then:
 endpoints = ["unix:///var/run/docker.sock", "tcp://192.168.1.20:2375"]
 ```
 
-Labels on a container override discovery: `labdash.name`, `labdash.app`,
-`labdash.url` and `labdash.hide=true`.
+Labels on a container override discovery: `burrow.name`, `burrow.app`,
+`burrow.url` and `burrow.hide=true`.
 
 ## What it recognises
 
@@ -76,18 +76,18 @@ Gitea/Forgejo, Paperless-ngx, Tandoor, DokuWiki, Crafty, and Minecraft servers
 
 A container it can't identify still gets a card with its name and status, so
 nothing you've published is invisible. Adding an app is usually 2–3 lines in
-`labdash/apps/`; see the design doc.
+`burrow/apps/`; see the design doc.
 
 ## Themes
 
-Midnight (default), Daylight and Ember ship in `labdash/web/themes/`. A theme
+Midnight (default), Daylight and Ember ship in `burrow/web/themes/`. A theme
 is a single CSS file of variables. Drop in a new one and it appears in the
 picker.
 
 ## Run without Docker
 
 ```bash
-LABDASH_CONFIG=./config/labdash.toml LABDASH_SECRETS_FILE=./secrets/apps.toml python3 -m labdash
+BURROW_CONFIG=./config/burrow.toml BURROW_SECRETS_FILE=./secrets/apps.toml python3 -m burrow
 ```
 
 Python 3.11 or newer. Standard library only.

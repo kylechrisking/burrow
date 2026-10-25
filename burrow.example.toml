@@ -1,5 +1,5 @@
-# lab-dashboard config. Every key is optional — delete what you do not need.
-# Mount as /config/labdash.toml.
+# burrow config. Every key is optional — delete what you do not need.
+# Mount as /config/burrow.toml.
 
 title = "HomeLab"
 theme = "midnight"          # midnight | daylight | ember | any file in web/themes/
@@ -8,7 +8,7 @@ theme = "midnight"          # midnight | daylight | ember | any file in web/them
 # Token needs only PVEAuditor; see README.
 [proxmox]
 url = "https://192.168.1.10:8006"
-token_file = "/secrets/proxmox.token"   # one line: root@pam!labdash=xxxxxxxx-....
+token_file = "/secrets/proxmox.token"   # one line: root@pam!burrow=xxxxxxxx-....
 # TLS is not verified (Proxmox ships a self-signed cert).
 # VMs without the QEMU guest agent or a static ipconfig: tell it their IP.
 # guest_addresses = { 105 = "192.168.1.105" }
