@@ -14,7 +14,7 @@ There is no service list to write. One container, no dependencies, themeable.
 ## Quickstart
 
 ```bash
-git clone https://github.com/<you>/burrow && cd burrow
+git clone https://github.com/kylechrisking/burrow && cd burrow
 docker compose -f compose.example.yaml up -d --build
 ```
 

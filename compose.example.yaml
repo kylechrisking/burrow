@@ -1,7 +1,7 @@
 services:
   burrow:
     build: .
-    # image: ghcr.io/<you>/burrow:latest   # once published
+    # image: ghcr.io/kylechrisking/burrow:latest   # once published
     container_name: burrow
     restart: unless-stopped
     ports:
