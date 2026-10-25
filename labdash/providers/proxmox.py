@@ -30,8 +30,9 @@ class ProxmoxProvider(Provider):
     interval = 20
     guest_ip_ttl = 300   # guest IPs rarely change; re-read them every 5 minutes
 
-    def __init__(self, url: str, token: str):
+    def __init__(self, url: str, token: str, overrides: dict | None = None):
         self.url = url.rstrip("/")
+        self.overrides = {str(k): v for k, v in (overrides or {}).items()}   # vmid -> IP, for VMs without an agent
         self.headers = {"Authorization": f"PVEAPIToken={token}"}
         self._ips: dict[str, str | None] = {}
         self._ips_at = 0.0
@@ -49,7 +50,7 @@ class ProxmoxProvider(Provider):
         if not token:
             log.warning("proxmox: url set but no token (token_file=%s)", tf)
             return None
-        return [cls(p["url"], token)]
+        return [cls(p["url"], token, p.get("guest_addresses"))]
 
     def _get(self, path: str):
         return net.get_json(f"{self.url}/api2/json{path}", headers=dict(self.headers), timeout=6)["data"]
@@ -105,11 +106,26 @@ class ProxmoxProvider(Provider):
                 node.storage.append(Storage(r["storage"], int(r.get("disk", 0)), int(r["maxdisk"]),
                                             r.get("plugintype", "")))
 
+        for h in hosts.values():
+            h.storage.sort(key=lambda s: s.name)
         self._summary = f"{n_nodes} nodes, {n_guests} guests"
         return Inventory(hosts=list(hosts.values()))
 
     def _guest_ip(self, kind: str, node: str, vmid: int, running: bool) -> str | None:
+        """Configured address first: a static ip= is authoritative, while a live
+        interface may list a floating VIP (keepalived) ahead of the real IP."""
+        if str(vmid) in self.overrides:
+            return self.overrides[str(vmid)]
         base = f"/nodes/{quote(node)}/{kind}/{vmid}"
+        try:
+            conf = self._get(f"{base}/config")
+            for k in sorted(conf):
+                if k.startswith(("net", "ipconfig")):
+                    m = IP_RE.search(str(conf[k]))
+                    if m:
+                        return m.group(1)
+        except RuntimeError:
+            pass
         if running:
             try:
                 if kind == "lxc":
@@ -125,16 +141,7 @@ class ProxmoxProvider(Provider):
                             if a.get("ip-address-type") == "ipv4" and not ip.startswith("127."):
                                 return ip
             except RuntimeError:
-                pass  # no guest agent, or no permission: fall back to the config
-        try:
-            conf = self._get(f"{base}/config")
-            for k in sorted(conf):
-                if k.startswith(("net", "ipconfig")):
-                    m = IP_RE.search(str(conf[k]))
-                    if m:
-                        return m.group(1)
-        except RuntimeError:
-            pass
+                pass  # no guest agent, or no permission
         return None
 
     def describe(self) -> str:

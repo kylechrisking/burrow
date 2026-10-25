@@ -10,6 +10,8 @@ theme = "midnight"          # midnight | daylight | ember | any file in web/them
 url = "https://192.168.1.10:8006"
 token_file = "/secrets/proxmox.token"   # one line: root@pam!labdash=xxxxxxxx-....
 # TLS is not verified (Proxmox ships a self-signed cert).
+# VMs without the QEMU guest agent or a static ipconfig: tell it their IP.
+# guest_addresses = { 105 = "192.168.1.105" }
 
 # Docker: the local socket is picked up automatically when mounted.
 # Remote engines: put tecnativa/docker-socket-proxy (CONTAINERS=1 INFO=1) in front.

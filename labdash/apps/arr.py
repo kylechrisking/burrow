@@ -21,6 +21,7 @@ def arr_stats(api: str = "v3", missing: bool = True):
             return []
         h = {"X-Api-Key": key}
         out: list[Stat] = []
+        ctx.version = ctx.json(f"/api/{api}/system/status", headers=dict(h)).get("version")
         q = ctx.json(f"/api/{api}/queue?pageSize=1", headers=dict(h)).get("totalRecords", 0)
         out.append(Stat("Queue", count(q)))
         if missing:
@@ -38,6 +39,7 @@ def prowlarr_stats(ctx: Ctx) -> list[Stat]:
     if not key:
         return []
     h = {"X-Api-Key": key}
+    ctx.version = ctx.json("/api/v1/system/status", headers=dict(h)).get("version")
     idx = ctx.json("/api/v1/indexer", headers=dict(h))
     enabled = sum(1 for i in idx if i.get("enable"))
     issues = ctx.json("/api/v1/health", headers=dict(h))
@@ -50,6 +52,7 @@ def bazarr_stats(ctx: Ctx) -> list[Stat]:
     key = ctx.secret.get("api_key")
     if not key:
         return []
+    ctx.version = ctx.json("/api/system/status", headers={"X-API-KEY": key}).get("data", {}).get("bazarr_version")
     b = ctx.json("/api/badges", headers={"X-API-KEY": key})
     return [Stat("Episodes missing subs", count(b.get("episodes", 0))),
             Stat("Movies missing subs", count(b.get("movies", 0)))]
@@ -73,7 +76,7 @@ def qbit_stats(ctx: Ctx) -> list[Stat]:
         login = ctx.get("/api/v2/auth/login", method="POST", headers={"Referer": ctx.base},
                         data=urllib.parse.urlencode({"username": user, "password": pw}).encode())
         cookie = login.header("set-cookie").split(";")[0]
-        if login.status != 200 or "=" not in cookie:
+        if login.status >= 300 or login.text.strip() == "Fails." or "=" not in cookie:
             ctx.cache["login_failed_at"] = time.time()
             raise RuntimeError("qBittorrent login failed")
         ctx.cache["cookie"] = cookie

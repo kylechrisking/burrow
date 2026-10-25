@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import socket
 from urllib.parse import urlparse
 
 from .. import net
@@ -73,7 +74,10 @@ class DockerProvider(Provider):
         )
         endpoints: list[Endpoint] = []
         running = 0
+        me = socket.gethostname() if self.socket else None   # our own container id prefix
         for c in self._get("/containers/json?all=1"):
+            if me and c.get("Id", "").startswith(me):
+                continue
             name = (c.get("Names") or ["?"])[0].lstrip("/")
             labels = c.get("Labels") or {}
             if labels.get("labdash.hide", "").lower() == "true":

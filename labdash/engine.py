@@ -148,6 +148,7 @@ class Engine:
         # 3. Fingerprint every open target.
         cache: dict = {}
         found = [s for s in self.pool.map(lambda kv: self._fingerprint(kv[0], kv[1], cache), targets.items()) if s]
+        found = _one_per_host(found)
 
         now = time.time()
         hidden = set(self.cfg.hide.get("apps", []))
@@ -327,6 +328,24 @@ class Engine:
             "services": sorted(svc_out, key=lambda d: (d["category"], d["name"].lower())),
             "providers": list(self.pstatus.values()),
         }
+
+
+def _one_per_host(found: list[Service]) -> list[Service]:
+    """An app answering on two ports of one host (DSM on 5000 and 5001) is one
+    service: keep the Docker-sourced one, else the app's preferred port."""
+    best: dict[tuple, Service] = {}
+    out = []
+    for s in found:
+        app = REGISTRY.get(s.app)
+        if app is None or app.multi:
+            out.append(s)
+            continue
+        key = (s.host_id or s.address, s.app)
+        rank = (s.container is None, app.ports.index(s.port) if s.port in app.ports else 99)
+        cur = best.get(key)
+        if cur is None or rank < (cur.container is None, app.ports.index(cur.port) if cur.port in app.ports else 99):
+            best[key] = s
+    return out + list(best.values())
 
 
 def _minecraft_stats(mc: dict) -> list[Stat]:

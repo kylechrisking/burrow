@@ -43,6 +43,7 @@ class App:
     stats: Callable[[Ctx], list[Stat]] | None = None
     needs: str | None = None                 # hint shown when stats need a secret, e.g. "api_key"
     link_path: str = ""
+    multi: bool = False                      # several instances per host are normal (game servers)
 
     def __post_init__(self):
         self.icon = self.icon or self.id

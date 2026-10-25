@@ -8,7 +8,7 @@ from .base import App, Ctx, body, count, json_field, json_has, register, title
 
 
 def _plex_version(r):
-    m = re.search(r'version="([^"]+)"', r.text)
+    m = re.search(r'<MediaContainer[^>]*\sversion="([^"]+)"', r.text)
     return m.group(1).split("-")[0] if m else None
 
 

@@ -98,5 +98,5 @@ register(
     App("dokuwiki", "DokuWiki", "Apps", [80], match=body("dokuwiki"), images=["dokuwiki"]),
     App("crafty", "Crafty Controller", "Games", [8443], scheme="https", match=title("Crafty"),
         images=["crafty"], icon="crafty-controller"),
-    App("minecraft", "Minecraft", "Games", [25565, 25566], kind="minecraft", images=["minecraft"]),
+    App("minecraft", "Minecraft", "Games", [25565, 25566], kind="minecraft", images=["minecraft"], multi=True),
 )
