@@ -44,6 +44,7 @@ class App:
     needs: str | None = None                 # hint shown when stats need a secret, e.g. "api_key"
     link_path: str = ""
     multi: bool = False                      # several instances per host are normal (game servers)
+    variants: dict[str, str] = field(default_factory=dict)  # image keyword -> display name (forks)
 
     def __post_init__(self):
         self.icon = self.icon or self.id
@@ -52,12 +53,39 @@ class App:
         h = hint.lower()
         return any(i in h for i in self.images)
 
+    def display_name(self, hint: str = "") -> str:
+        h = hint.lower()
+        return next((name for key, name in self.variants.items() if key in h), self.name)
+
 
 # ---- matchers ---------------------------------------------------------------
 
 def title(*words: str) -> Matcher:
     ws = [w.lower() for w in words]
     return lambda r: r.status < 500 and any(w in r.title.lower() for w in ws)
+
+
+def title_is(*names: str) -> Matcher:
+    """Stricter than title(): the title equals a name or starts with "name " /
+    "name |" / "name -", so a short name like "Actual" cannot match a sentence."""
+    ns = [n.lower() for n in names]
+
+    def m(r: net.Response) -> bool:
+        t = r.title.lower()
+        return r.status < 500 and any(t == n or t.startswith((n + " ", n + "|", n + "-", n + ":")) for n in ns)
+    return m
+
+
+def json_at(path: str, value: str | None = None) -> Matcher:
+    """Nested JSON key ("server.name") is present, optionally containing value."""
+    def m(r: net.Response) -> bool:
+        j = r.json()
+        for p in path.split("."):
+            if not isinstance(j, dict) or p not in j:
+                return False
+            j = j[p]
+        return value is None or value.lower() in str(j).lower()
+    return m
 
 
 def body(*needles: str) -> Matcher:

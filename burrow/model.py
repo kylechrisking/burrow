@@ -35,6 +35,7 @@ class Host:
     storage: list[Storage] = field(default_factory=list)
     containers: list[Container] = field(default_factory=list)
     aliases: list[str] = field(default_factory=list)       # other names this host is known by (Docker /info Name)
+    tags: list[str] = field(default_factory=list)          # Proxmox tags; "burrow-hide" hides the host
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -90,6 +91,7 @@ class Service:
     check: str | None = None          # manual cards: URL that decides up/down
     fields: list | None = None        # [[card]]: [[spec, label], ...]
     refresh: float = 0                # [[card]]: seconds between fetches (0 = every check)
+    matched: bool = True              # fingerprint matched (False: trusted on the image name alone)
 
     @property
     def base(self) -> str:

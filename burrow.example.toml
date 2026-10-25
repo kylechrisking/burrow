@@ -24,6 +24,7 @@ endpoints = ["unix:///var/run/docker.sock"]
 # addresses = { "unix:///var/run/docker.sock" = "192.168.1.20" }
 
 # Extra hosts to fingerprint (a NAS, a Pi, anything outside Proxmox/Docker).
+# A subnet ("192.168.1.0/24") is swept and every address that answers is added.
 [scan]
 hosts = []
 
@@ -33,6 +34,7 @@ file = "/secrets/apps.toml"
 [hide]
 apps = []                   # app ids, e.g. ["flaresolverr"]
 names = []                  # card names
+hosts = []                  # host names or IPs; or tag a Proxmox guest "burrow-hide"
 
 # Header weather from open-meteo (no API key).
 # [weather]

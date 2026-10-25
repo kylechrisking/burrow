@@ -111,9 +111,9 @@ Shipped providers:
 
 | Provider | Turns on when | Reads |
 |---|---|---|
-| `proxmox` | `[proxmox] url` and a token file exist | `/cluster/resources` (nodes, guests, storage), `/cluster/status` (node IPs), guest IPs from LXC `interfaces`, the QEMU guest agent, or `net0 ip=` in the config. Needs only the **PVEAuditor** role. |
-| `docker` | the socket is mounted, or `[docker] endpoints` is set | `/info`, `/containers/json`. Published ports become endpoints, the image name becomes the hint, and `burrow.*` labels act as overrides. Read-only; use a socket proxy for remote engines. |
-| `static` | `[scan] hosts` is set | Plain IPs or hostnames to fingerprint, for things outside Proxmox and Docker (a NAS, a Pi). |
+| `proxmox` | `[proxmox] url` and a token file exist | `/cluster/resources` (nodes, guests, storage, tags), `/cluster/status` (node IPs), guest IPs from a static `ip=` in the config, LXC `interfaces`, or the QEMU guest agent. Needs only the **PVEAuditor** role. A guest tagged `burrow-hide` is left out. |
+| `docker` | the socket is mounted, or `[docker] endpoints` is set | `/info`, `/containers/json`. Published ports become endpoints, the image name becomes the hint, and `burrow.*` labels act as overrides. Homepage labels, Traefik `Host()` rules and caddy-docker-proxy labels are borrowed for names, icons and links. Read-only; use a socket proxy for remote engines. Podman's Docker-compatible socket works the same way. |
+| `static` | `[scan] hosts` is set | Plain IPs, hostnames or **subnets**. A subnet is swept for any port an app uses; addresses that answer become hosts, named by reverse DNS. This is the zero-config path for labs with no Proxmox and no Docker API. |
 
 Adding a provider means adding a file and one line in `providers/__init__.py`.
 Candidates that fit the interface without engine changes: Kubernetes, Unraid,
@@ -141,7 +141,21 @@ App(
   helpers and that app's secrets. Without secrets an app still shows up/down,
   latency and, where the app exposes it unauthenticated, its version.
 - Non-HTTP apps set `kind`. `minecraft` speaks the server-list ping, so player
-  counts need no plugin or RCON.
+  counts need no plugin or RCON; `mqtt` sends a CONNECT and reads the CONNACK,
+  which also reveals whether the broker is open.
+- `variants` maps image keywords to display names for forks that share an API
+  (Overseerr, Jellyseerr and Seerr are one fingerprint).
+
+### Keeping fingerprints honest
+
+`testlab/compose.yaml` runs about 55 popular apps, mostly on default ports and
+some remapped on purpose. `tools/record_fixtures.py` stores what each one
+answers to `/` and to every candidate probe path, in
+`tests/fixtures/testlab.json`. `tests/test_fixtures.py` replays that offline and
+asserts three things for every app: it is identified from its image, it is
+identified by port alone when it sits on a default port, and **no other
+fingerprint matches it**. Run `python -m burrow identify http://host:port` to
+see what Burrow sees before writing a new one.
 
 Secrets are per app id, in a separate TOML file that should be mode 600:
 

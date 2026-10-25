@@ -66,17 +66,45 @@ Labels on a container override discovery: `burrow.name`, `burrow.app`,
 
 ## What it recognises
 
-Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, Jackett, qBittorrent,
-Transmission, SABnzbd, FlareSolverr, Plex, Jellyfin, Navidrome,
-Seerr/Overseerr/Jellyseerr, Tautulli, Immich, RomM, Pi-hole, AdGuard Home,
-Caddy, Nginx Proxy Manager, Proxmox VE, Synology DSM, Portainer, Uptime Kuma,
-Beszel, Grafana, Open WebUI, Ollama, Home Assistant, Nextcloud, Vaultwarden,
-Gitea/Forgejo, Paperless-ngx, Tandoor, DokuWiki, Crafty, and Minecraft servers
-(player counts via server-list ping).
+Over 120 apps: the *arr stack, every common download client, Plex, Jellyfin
+and Emby, Immich, Home Assistant and friends, Pi-hole, AdGuard, Traefik,
+Proxmox VE and Backup Server, TrueNAS, Unraid, UniFi, Grafana, Prometheus,
+Netdata, Uptime Kuma, Vaultwarden, Paperless-ngx, Nextcloud, Gitea, the other
+dashboards, and more. It also speaks Minecraft's server-list ping and MQTT. The
+full list is in **[docs/apps.md](docs/apps.md)**, including which cards show
+stats and what they need.
+
+Fingerprints are checked against real installs. `testlab/compose.yaml` runs
+about 55 apps on a spare Docker host, `tools/record_fixtures.py` records their
+answers, and the test suite replays them, so a change can't quietly break
+identification.
 
 A container it can't identify still gets a card with its name and status, so
-nothing you've published is invisible. Adding an app is usually 2–3 lines in
-`burrow/apps/`; see the design doc.
+nothing you've published is invisible. Adding an app is usually one line in
+`burrow/apps/`. `python -m burrow identify http://host:port` shows what Burrow
+sees at an address, which is most of the work of writing a new fingerprint.
+
+## Already using Homepage, Traefik or Caddy labels?
+
+Burrow reads them. A container with `homepage.name`, `homepage.description`,
+`homepage.icon` and `homepage.group` labels keeps its name, description, icon
+and group. A Traefik `Host()` rule or a caddy-docker-proxy `caddy=` label
+becomes the card's link, so links come out as `https://sonarr.example.com`
+instead of `IP:port`, with no config at all.
+
+## No Proxmox, no Docker API?
+
+Give it your subnet and it finds things on its own:
+
+```toml
+[scan]
+hosts = ["192.168.1.0/24"]
+```
+
+## Hide things
+
+Tag a Proxmox guest `burrow-hide`, list hosts under `[hide] hosts = [...]`, or
+put `burrow.hide=true` on a container.
 
 ## Make it yours
 

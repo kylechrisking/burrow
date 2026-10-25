@@ -83,8 +83,8 @@ def load() -> Config:
         cfg.proxmox["url"] = env["BURROW_PROXMOX_URL"]
     if env.get("BURROW_PROXMOX_TOKEN_FILE"):
         cfg.proxmox["token_file"] = env["BURROW_PROXMOX_TOKEN_FILE"]
-    if env.get("BURROW_DOCKER"):
-        cfg.docker["endpoints"] = [e.strip() for e in env["BURROW_DOCKER"].split(",") if e.strip()]
+    if "BURROW_DOCKER" in env:   # empty or "none" turns Docker off, even with a socket mounted
+        cfg.docker["endpoints"] = [e.strip() for e in env["BURROW_DOCKER"].split(",") if e.strip() not in ("", "none")]
     if env.get("BURROW_SCAN"):
         cfg.scan["hosts"] = [h.strip() for h in env["BURROW_SCAN"].split(",") if h.strip()]
 

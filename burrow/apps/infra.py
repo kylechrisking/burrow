@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 
 from ..model import Stat
-from .base import App, Ctx, any_of, body, count, header, json_field, json_has, register, title
+from .base import App, Ctx, any_of, body, count, header, json_field, json_has, register, title, title_is
 
 
 def pihole_stats(ctx: Ctx) -> list[Stat]:
@@ -60,20 +60,18 @@ def portainer_version(r):
 
 register(
     # --- infrastructure
-    App("proxmox", "Proxmox VE", "Infrastructure", [8006], scheme="https", match=title("Proxmox"),
+    App("proxmox", "Proxmox VE", "Infrastructure", [8006], scheme="https", match=title("Proxmox Virtual Environment"),
         icon="proxmox"),
     App("synology", "Synology DSM", "Infrastructure", [5001, 5000], scheme="https",
         match=any_of(title("Synology"), body("synology")), icon="synology"),
     App("portainer", "Portainer", "Infrastructure", [9000, 9443], probe="/api/status",
         match=json_has("InstanceID"), images=["portainer"], version=portainer_version),
-    App("homepage", "Homepage", "Infrastructure", [3000], images=["gethomepage"]),
+    App("homepage", "Homepage", "Dashboards", [3000], match=title_is("Homepage"), images=["gethomepage"]),
     App("caddy", "Caddy", "Network", [80, 443], match=header("server", "Caddy"), images=["caddy"]),
     App("nginx-proxy-manager", "Nginx Proxy Manager", "Network", [81], match=title("Nginx Proxy Manager"),
         images=["nginx-proxy-manager"]),
     App("pihole", "Pi-hole", "Network", [80], probe="/admin/", match=any_of(title("Pi-hole"), body("pi-hole")),
         images=["pihole"], icon="pi-hole", stats=pihole_stats, link_path="/admin/"),
-    App("adguard", "AdGuard Home", "Network", [3000, 80], match=title("AdGuard Home"), images=["adguard"],
-        icon="adguard-home"),
     # --- monitoring
     App("uptime-kuma", "Uptime Kuma", "Monitoring", [3001], match=any_of(title("Uptime Kuma"), body("uptime kuma")),
         images=["uptime-kuma"], stats=kuma_stats, needs="status_page"),
@@ -85,14 +83,8 @@ register(
         images=["open-webui"], version=json_field("version")),
     App("ollama", "Ollama", "AI", [11434], match=body("ollama is running"), images=["ollama"], stats=ollama_stats),
     # --- apps
-    App("home-assistant", "Home Assistant", "Apps", [8123], match=title("Home Assistant"),
-        images=["home-assistant", "homeassistant"]),
-    App("nextcloud", "Nextcloud", "Apps", [80, 443], probe="/status.php", match=json_has("productname", "Nextcloud"),
+    App("nextcloud", "Nextcloud", "Files", [80, 443], probe="/status.php", match=json_has("productname", "Nextcloud"),
         images=["nextcloud"], version=json_field("versionstring")),
-    App("vaultwarden", "Vaultwarden", "Apps", [80], match=title("Vaultwarden", "Bitwarden"), images=["vaultwarden"]),
-    App("gitea", "Gitea", "Apps", [3000], match=title("Gitea", "Forgejo"), images=["gitea", "forgejo"]),
-    App("paperless", "Paperless-ngx", "Apps", [8000], match=title("Paperless"), images=["paperless"],
-        icon="paperless-ngx"),
     App("tandoor", "Tandoor Recipes", "Apps", [8080], match=title("Tandoor"), images=["tandoor"],
         icon="tandoor-recipes"),
     App("dokuwiki", "DokuWiki", "Apps", [80], match=body("dokuwiki"), images=["dokuwiki"]),

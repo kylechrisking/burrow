@@ -1,0 +1,131 @@
+# Burrow test lab: popular self-hosted apps, mostly on default ports, for
+# fingerprint development. Nothing here is configured or persistent; it only
+# has to answer HTTP the way a fresh install does.
+#
+#   docker compose up -d        # on a throwaway Docker host
+#   BURROW_DOCKER=unix:///var/run/docker.sock python -m burrow
+#
+# Remapped host ports (shown first) are deliberate: real labs remap too,
+# which exercises identification by image name instead of port.
+
+x-lsio: &lsio
+  PUID: "1000"
+  PGID: "1000"
+  TZ: Etc/UTC
+
+services:
+  # ---- media --------------------------------------------------------------
+  jellyfin:       { image: lscr.io/linuxserver/jellyfin, ports: ["8096:8096"], environment: *lsio }
+  emby:           { image: lscr.io/linuxserver/emby, ports: ["8097:8096"], environment: *lsio }
+  audiobookshelf: { image: ghcr.io/advplyr/audiobookshelf, ports: ["13378:80"] }
+  kavita:         { image: lscr.io/linuxserver/kavita, ports: ["5000:5000"], environment: *lsio }
+  komga:          { image: gotson/komga, ports: ["25600:25600"] }
+  calibre-web:    { image: lscr.io/linuxserver/calibre-web, ports: ["8083:8083"], environment: *lsio }
+  tautulli:       { image: lscr.io/linuxserver/tautulli, ports: ["8181:8181"], environment: *lsio }
+  overseerr:      { image: lscr.io/linuxserver/overseerr, ports: ["5055:5055"], environment: *lsio }
+  jellyseerr:     { image: ghcr.io/fallenbagel/jellyseerr, ports: ["5057:5055"] }
+
+  # ---- media management + downloads ----------------------------------------
+  lidarr:         { image: lscr.io/linuxserver/lidarr, ports: ["8686:8686"], environment: *lsio }
+  jackett:        { image: lscr.io/linuxserver/jackett, ports: ["9117:9117"], environment: *lsio }
+  qbittorrent:    { image: lscr.io/linuxserver/qbittorrent, ports: ["8080:8080"], environment: *lsio }
+  sabnzbd:        { image: lscr.io/linuxserver/sabnzbd, ports: ["8085:8080"], environment: *lsio }
+  nzbget:         { image: lscr.io/linuxserver/nzbget, ports: ["6789:6789"], environment: *lsio }
+  deluge:         { image: lscr.io/linuxserver/deluge, ports: ["8112:8112"], environment: *lsio }
+  transmission:   { image: lscr.io/linuxserver/transmission, ports: ["9091:9091"], environment: *lsio }
+
+  # ---- network ----------------------------------------------------------------
+  adguard:        { image: adguard/adguardhome, ports: ["3000:3000"] }
+  pihole:
+    image: pihole/pihole
+    ports: ["8053:80"]
+    environment: { FTLCONF_webserver_api_password: "", FTLCONF_dns_listeningMode: all }
+  technitium:     { image: technitium/dns-server, ports: ["5380:5380"] }
+  nginx-proxy-manager: { image: jc21/nginx-proxy-manager, ports: ["81:81"] }
+  traefik:
+    image: traefik:v3.3
+    command: ["--api.insecure=true", "--providers.docker=true", "--providers.docker.exposedbydefault=false", "--entrypoints.web.address=:80"]
+    ports: ["8082:8080", "8001:80"]
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock:ro"]
+  speedtest-tracker:
+    image: lscr.io/linuxserver/speedtest-tracker
+    ports: ["8765:80"]
+    environment:
+      <<: *lsio
+      APP_KEY: "base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="   # required by Laravel; all zeros on purpose, test lab only
+      DB_CONNECTION: sqlite
+
+  # ---- monitoring --------------------------------------------------------------
+  grafana:        { image: grafana/grafana, ports: ["3002:3000"] }
+  prometheus:     { image: prom/prometheus, ports: ["9090:9090"] }
+  netdata:        { image: netdata/netdata, ports: ["19999:19999"], cap_add: [SYS_PTRACE] }
+  glances:        { image: nicolargo/glances:latest, ports: ["61208:61208"], environment: { GLANCES_OPT: "-w" } }
+  scrutiny:       { image: ghcr.io/analogj/scrutiny:master-omnibus, ports: ["8088:8080"] }
+  dozzle:         { image: amir20/dozzle, ports: ["8888:8080"], volumes: ["/var/run/docker.sock:/var/run/docker.sock:ro"] }
+  uptime-kuma:    { image: louislam/uptime-kuma:2, ports: ["3001:3001"] }
+  gotify:         { image: gotify/server, ports: ["8070:80"] }
+  ntfy:           { image: binwiederhier/ntfy, command: serve, ports: ["8071:80"] }
+  changedetection: { image: ghcr.io/dgtlmoon/changedetection.io, ports: ["5005:5000"] }
+
+  # ---- home automation ----------------------------------------------------------
+  home-assistant: { image: ghcr.io/home-assistant/home-assistant:stable, ports: ["8123:8123"] }
+  node-red:       { image: nodered/node-red, ports: ["1880:1880"] }
+  mosquitto:      { image: eclipse-mosquitto, command: mosquitto -c /mosquitto-no-auth.conf, ports: ["1883:1883"] }
+  esphome:        { image: ghcr.io/esphome/esphome, ports: ["6052:6052"] }
+
+  # ---- apps -----------------------------------------------------------------------
+  vaultwarden:    { image: vaultwarden/server, ports: ["8222:80"], environment: { I_REALLY_WANT_VOLATILE_STORAGE: "true" } }
+  paperless-redis: { image: redis:7-alpine }
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx
+    ports: ["8010:8000"]
+    environment: { PAPERLESS_REDIS: "redis://paperless-redis:6379" }
+    depends_on: [paperless-redis]
+  mealie:         { image: ghcr.io/mealie-recipes/mealie, ports: ["9925:9000"] }
+  homebox:        { image: ghcr.io/sysadminsmedia/homebox, ports: ["7745:7745"], volumes: ["homebox:/data"] }
+  grocy:          { image: lscr.io/linuxserver/grocy, ports: ["9283:80"], environment: *lsio }
+  actual:         { image: actualbudget/actual-server, ports: ["5006:5006"] }
+  linkding:       { image: sissbruecker/linkding, ports: ["9095:9090"] }
+  freshrss:       { image: freshrss/freshrss, ports: ["8089:80"] }
+  it-tools:       { image: corentinth/it-tools, ports: ["8098:80"] }
+  code-server:    { image: lscr.io/linuxserver/code-server, ports: ["8443:8443"], environment: *lsio }
+  n8n:            { image: n8nio/n8n, ports: ["5678:5678"], environment: { N8N_SECURE_COOKIE: "false" } }
+  syncthing:      { image: syncthing/syncthing, ports: ["8384:8384"] }
+  filebrowser:    { image: filebrowser/filebrowser, ports: ["8086:80"] }
+  nextcloud:      { image: nextcloud:apache, ports: ["8180:80"] }
+  gitea:          { image: gitea/gitea, ports: ["3003:3000"] }
+  forgejo:        { image: codeberg.org/forgejo/forgejo:11, ports: ["3004:3000"] }
+  wikijs:
+    image: ghcr.io/requarks/wiki:2
+    ports: ["3006:3000"]
+    environment: { DB_TYPE: sqlite, DB_FILEPATH: /wiki/data.sqlite }
+  searxng:        { image: searxng/searxng, ports: ["8380:8080"] }
+  duplicati:      { image: lscr.io/linuxserver/duplicati, ports: ["8200:8200"], environment: { <<: *lsio, SETTINGS_ENCRYPTION_KEY: "burrow-test-lab-only" } }
+
+  # ---- dashboards + docker tools ---------------------------------------------------
+  dockge:         { image: louislam/dockge, ports: ["5001:5001"], volumes: ["/var/run/docker.sock:/var/run/docker.sock:ro"] }
+  homarr:
+    image: ghcr.io/homarr-labs/homarr
+    ports: ["7575:7575"]
+    environment: { SECRET_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000" }
+  dashy:          { image: lissy93/dashy, ports: ["4000:8080"] }
+  heimdall:       { image: lscr.io/linuxserver/heimdall, ports: ["8091:80"], environment: *lsio }
+  homepage:
+    image: ghcr.io/gethomepage/homepage
+    ports: ["3005:3000"]
+    environment: { HOMEPAGE_ALLOWED_HOSTS: "192.168.1.160:3005" }
+
+  # ---- labels: Homepage- and Traefik-style metadata Burrow should pick up --------------
+  whoami:
+    image: traefik/whoami
+    ports: ["8099:80"]
+    labels:
+      homepage.name: "Who Am I"
+      homepage.group: "Tools"
+      homepage.description: "Echoes the request back"
+      homepage.icon: "traefik"
+      traefik.enable: "true"
+      traefik.http.routers.whoami.rule: "Host(`whoami.lab.test`)"
+
+volumes:
+  homebox:

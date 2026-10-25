@@ -50,7 +50,43 @@ class Cards(unittest.TestCase):
                          [("VOO", "698.58 -0.4%"), ("Free", "3,327 GB"), ("Clients", "30"), ("Missing", "")])
 
 
+class Labels(unittest.TestCase):
+    def test_homepage_labels_are_borrowed(self):
+        from burrow.providers.docker import with_borrowed_labels
+        out = with_borrowed_labels({"homepage.name": "Who", "homepage.icon": "sonarr.png",
+                                    "homepage.group": "Tools", "homepage.description": "d"})
+        self.assertEqual((out["burrow.name"], out["burrow.icon"], out["burrow.category"], out["burrow.description"]),
+                         ("Who", "sonarr", "Tools", "d"))
+
+    def test_traefik_rule_becomes_link_and_tls_router_wins(self):
+        from burrow.providers.docker import with_borrowed_labels
+        out = with_borrowed_labels({
+            "traefik.http.routers.a.rule": "Host(`app.lan`)",
+            "traefik.http.routers.b.rule": "Host(`app.example.com`) && PathPrefix(`/`)",
+            "traefik.http.routers.b.tls": "true"})
+        self.assertEqual(out["burrow.url"], "https://app.example.com")
+
+    def test_explicit_burrow_label_wins_and_caddy_is_read(self):
+        from burrow.providers.docker import with_borrowed_labels
+        self.assertEqual(with_borrowed_labels({"caddy": "media.example.com"})["burrow.url"], "https://media.example.com")
+        self.assertEqual(with_borrowed_labels({"caddy": "x.com", "burrow.url": "http://mine"})["burrow.url"], "http://mine")
+
+
 class Merge(unittest.TestCase):
+    def test_tagged_guest_and_its_endpoints_are_hidden(self):
+        e = Engine(Config(hide={"hosts": ["secret"]}))
+        e.inventories = {
+            "proxmox": Inventory(hosts=[
+                Host("pve:lxc/160", "burrow-lab", "lxc", "running", "10.0.0.160", tags=["burrow-hide", "test"]),
+                Host("pve:lxc/170", "secret", "lxc", "running", "10.0.0.170"),
+                Host("pve:lxc/131", "ai", "lxc", "running", "10.0.0.131")]),
+            "docker:x": Inventory(hosts=[Host("docker:burrow-lab", "burrow-lab", "docker")],
+                                  endpoints=[Endpoint("docker:burrow-lab", 8096, hint="jellyfin")]),
+        }
+        hosts, endpoints = e.merged()
+        self.assertEqual(sorted(hosts), ["pve:lxc/131"])
+        self.assertEqual(endpoints, [])
+
     def test_docker_engine_folds_into_guest_by_name(self):
         e = Engine(Config())
         e.inventories = {

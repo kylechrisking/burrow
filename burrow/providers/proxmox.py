@@ -88,6 +88,7 @@ class ProxmoxProvider(Provider):
                     id=hid, name=r.get("name", str(vmid)), kind=t, vmid=vmid, source=self.name,
                     status=r.get("status", "unknown"), parent=f"pve:node/{node}",
                     address=self._ips.get(hid), metrics=_metrics(r),
+                    tags=[x for x in re.split(r"[;,\s]+", r.get("tags", "")) if x],
                 )
         if refresh_ips:
             self._ips_at = time.monotonic()

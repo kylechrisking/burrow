@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import os
 import re
 import socket
 import ssl
@@ -106,6 +107,21 @@ class UnixHTTPConnection(http.client.HTTPConnection):
         s.settimeout(self.timeout)
         s.connect(self._path)
         self.sock = s
+
+
+def in_container() -> bool:
+    return os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
+
+
+def primary_ip() -> str | None:
+    """This machine's LAN address: the source a packet to the internet would use.
+    A UDP connect sends nothing."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("192.0.2.1", 9))   # TEST-NET-1: never routed anywhere real
+            return s.getsockname()[0]
+    except OSError:
+        return None
 
 
 def default_gateway() -> str | None:

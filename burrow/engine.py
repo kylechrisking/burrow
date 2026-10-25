@@ -11,7 +11,6 @@ from dataclasses import replace
 from urllib.parse import urlparse
 
 from . import apps, net
-from .apps import minecraft
 from .apps.base import REGISTRY, Ctx
 from .config import Config
 from .model import Endpoint, Host, Service, Stat
@@ -34,7 +33,13 @@ class Engine:
         self.lock = threading.RLock()
         self.pool = ThreadPoolExecutor(max_workers=64, thread_name_prefix="probe")
         self.changed = threading.Event()
-        self.gateway = net.default_gateway()
+        # Where a local Docker socket's published ports are reached when the engine
+        # is not a known guest: our own LAN IP when running on the Docker host itself
+        # (linkable), or the bridge gateway when running inside a container (not).
+        if net.in_container():
+            self.local_addr, self.local_linkable = net.default_gateway(), False
+        else:
+            self.local_addr, self.local_linkable = net.primary_ip(), True
         self.identified_at: float | None = None
         self.weather: dict | None = None
         self.started = time.time()
@@ -121,6 +126,16 @@ class Engine:
                 remap[h.id] = target.id
                 del hosts[h.id]
         endpoints = [replace(e, host_id=remap.get(e.host_id, e.host_id)) for inv in invs for e in inv.endpoints]
+
+        # Hidden hosts vanish entirely: no card, no probing, no services.
+        hide_names = {n.lower() for n in self.cfg.hide.get("hosts", [])}
+        hidden = {h.id for h in hosts.values()
+                  if h.name.lower() in hide_names or (h.address or "") in hide_names
+                  or any(t.lower() in ("burrow-hide", "burrow.hide") for t in h.tags)}
+        hidden |= {h.id for h in hosts.values() if h.parent in hidden}
+        for hid in hidden:
+            del hosts[hid]
+        endpoints = [e for e in endpoints if e.host_id not in hidden]
         return hosts, endpoints
 
     # ---- identification ------------------------------------------------------
@@ -131,14 +146,15 @@ class Engine:
         # 1. Published Docker ports: we know exactly what is there.
         for e in endpoints:
             h = hosts.get(e.host_id)
-            addr = h.address if h and h.address else self.gateway
+            known = bool(h and h.address)
+            addr = h.address if known else self.local_addr
             if not addr:
                 continue
             ports = [e.port]
             if e.port == 0:  # host-networked container: try its app's default port
                 ports = [a.ports[0] for a in apps.candidates(0, e.hint, e.labels.get("burrow.app"))[:1] if a.ports]
             for port in ports:
-                targets[(addr, port)] = {"host": h.id if h else None, "ep": e, "linkable": bool(h and h.address)}
+                targets[(addr, port)] = {"host": h.id if h else None, "ep": e, "linkable": known or self.local_linkable}
 
         # 2. Well-known ports on every host with an address (guests whose Docker we cannot see, a NAS...).
         scan = [(h, p) for h in hosts.values()
@@ -195,7 +211,8 @@ class Engine:
             image = e.hint.split()[0].split("/")[-1].split(":")[0]
             return Service(
                 id=f"{addr}:{port}", app="container", name=e.labels.get("burrow.name") or e.container,
-                category="Containers", icon=image, host_id=t["host"], address=addr, port=port,
+                category=e.labels.get("burrow.category") or "Containers", icon=e.labels.get("burrow.icon") or image,
+                description=e.labels.get("burrow.description"), host_id=t["host"], address=addr, port=port,
                 scheme=got[0] if got else "tcp", container=e.container,
                 url=e.labels.get("burrow.url") or (f"{got[0]}://{addr}:{port}" if got and t["linkable"] else None),
                 status="up", latency_ms=got[1].elapsed_ms if got else None,
@@ -209,10 +226,11 @@ class Engine:
         if not url and t["linkable"] and app.kind == "http":
             url = f"{pr.scheme}://{addr}:{port}{app.link_path}"
         return Service(
-            id=f"{addr}:{port}", app=app.id, name=labels.get("burrow.name") or app.name,
-            category=app.category, icon=app.icon, host_id=t["host"], address=addr, port=port,
+            id=f"{addr}:{port}", app=app.id, name=labels.get("burrow.name") or app.display_name(e.hint if e else ""),
+            category=labels.get("burrow.category") or app.category, icon=labels.get("burrow.icon") or app.icon,
+            description=labels.get("burrow.description"), host_id=t["host"], address=addr, port=port,
             scheme=pr.scheme, url=url, container=e.container if e else None,
-            status="up", latency_ms=pr.latency_ms, version=pr.version,
+            status="up", latency_ms=pr.latency_ms, version=pr.version, matched=pr.matched,
         )
 
     def _manual_services(self) -> list[Service]:
@@ -273,7 +291,7 @@ class Engine:
         if pr is None:
             s.status, s.latency_ms, s.error = "down", None, "no response"
             return
-        up = pr.mc is not None or pr.resp.status < 500
+        up = pr.up
         s.status = "up" if up else "down"
         s.error = None if up else f"HTTP {pr.resp.status}"
         s.latency_ms = pr.latency_ms
@@ -281,8 +299,8 @@ class Engine:
         s.missing_since = None
         if not up:
             return
-        if pr.mc is not None:
-            s.stats = _minecraft_stats(pr.mc)
+        if pr.raw is not None:
+            s.stats = apps.raw_stats(app.kind, pr.raw)
             return
         secret = self.cfg.secret(app.id)
         if app.stats:
@@ -310,7 +328,7 @@ class Engine:
         svc_out = []
         for s in services:
             d = s.to_dict()
-            for k in ("check", "fields", "refresh", "missing_since"):
+            for k in ("check", "fields", "refresh", "missing_since", "matched"):
                 d.pop(k, None)
             h = hosts.get(s.host_id)
             d["host"] = h.name if h else None
@@ -427,6 +445,11 @@ def _card_stats(fields: list, data: dict) -> list[Stat]:
     return out
 
 
+def _rank(s: Service, app) -> tuple:
+    """Lower is better: a port that answered as the app, then Docker-sourced, then the app's preferred port."""
+    return (not s.matched, s.container is None, app.ports.index(s.port) if s.port in app.ports else 99)
+
+
 def _one_per_host(found: list[Service]) -> list[Service]:
     """An app answering on two ports of one host (DSM on 5000 and 5001) is one
     service: keep the Docker-sourced one, else the app's preferred port."""
@@ -445,21 +468,7 @@ def _one_per_host(found: list[Service]) -> list[Service]:
             out.append(s)
             continue
         key = (s.host_id or s.address, s.app)
-        rank = (s.container is None, app.ports.index(s.port) if s.port in app.ports else 99)
         cur = best.get(key)
-        if cur is None or rank < (cur.container is None, app.ports.index(cur.port) if cur.port in app.ports else 99):
+        if cur is None or _rank(s, app) < _rank(cur, app):
             best[key] = s
     return out + list(best.values())
-
-
-def _minecraft_stats(mc: dict) -> list[Stat]:
-    p = mc.get("players", {})
-    online = p.get("online", 0)
-    out = [Stat("Players", f"{online}/{p.get('max', '?')}", "ok" if online else "")]
-    names = [x.get("name") for x in p.get("sample", []) or [] if x.get("name")]
-    if names:
-        out.append(Stat("Online", ", ".join(names[:4])))
-    m = minecraft.motd(mc.get("description"))
-    if m:
-        out.append(Stat("MOTD", m[:60]))
-    return out
