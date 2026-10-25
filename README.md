@@ -9,6 +9,8 @@ There is no service list to write. One container, no dependencies, themeable.
 
 > Status: early MVP. See [docs/design.md](docs/design.md) for how it works and where it's going.
 
+![Midnight theme](docs/screenshots/desktop-midnight.jpg)
+
 ## Quickstart
 
 ```bash
