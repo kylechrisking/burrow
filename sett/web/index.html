@@ -11,7 +11,7 @@
   <script>
     // Apply the saved theme before first paint so there is no flash.
     try {
-      let t = localStorage.getItem("burrow.theme");
+      let t = localStorage.getItem("sett.theme");
       if (t === "auto") t = matchMedia("(prefers-color-scheme: dark)").matches ? "midnight" : "daylight";
       if (t) document.getElementById("theme-css").href = `themes/${t}.css`;
     } catch {}
@@ -48,7 +48,7 @@
     <nav id="tabs" class="tabs" aria-label="Views" hidden></nav>
     <div id="config-error" class="config-error" role="alert" hidden></div>
 
-    <!-- Slot for custom.js panels. Burrow never re-renders it. -->
+    <!-- Slot for custom.js panels. Sett never re-renders it. -->
     <div id="panels"></div>
 
     <section id="summary" class="summary" aria-label="Summary"></section>

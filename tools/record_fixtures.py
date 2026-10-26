@@ -19,9 +19,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from burrow import apps, net                  # noqa: E402
-from burrow.apps.base import REGISTRY         # noqa: E402
-from burrow.providers.docker import DockerProvider  # noqa: E402
+from sett import apps, net                  # noqa: E402
+from sett.apps.base import REGISTRY         # noqa: E402
+from sett.providers.docker import DockerProvider  # noqa: E402
 
 # compose service -> app id, where they differ. None: not an app we fingerprint.
 EXPECT = {

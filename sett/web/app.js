@@ -19,11 +19,11 @@ const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 let state = null;
 let trends = {};          // series -> last hour of values, from /api/history
 let lastSig = "";
-let category = store.get("burrow.cat") || "All";
+let category = store.get("sett.cat") || "All";
 let query = "";
-let viewId = new URLSearchParams(location.search).get("view") || store.get("burrow.view") || "";
-const pinned = new Set(store.list("burrow.pinned"));
-const hidden = new Set(store.list("burrow.hidden"));
+let viewId = new URLSearchParams(location.search).get("view") || store.get("sett.view") || "";
+const pinned = new Set(store.list("sett.pinned"));
+const hidden = new Set(store.list("sett.hidden"));
 let showHidden = false;
 
 // ---- formatting ------------------------------------------------------------
@@ -65,7 +65,7 @@ function spark(series, cls = "spark") {
 }
 
 // ---- icons -----------------------------------------------------------------
-// Served by Burrow itself (/icons/...), cached on disk, so they work offline.
+// Served by Sett itself (/icons/...), cached on disk, so they work offline.
 
 function icon(name, label) {
   const letter = esc((label || name || "?").trim()[0]?.toUpperCase() || "?");
@@ -264,10 +264,10 @@ function render() {
       <span class="dot ${p.ok ? "up" : p.ok === false ? "down" : ""}"></span>${esc(p.name)}${p.detail ? ` · ${esc(p.detail)}` : ""}${p.ok === false ? ` · ${esc(p.error)}` : ""}</span>`
   ).join("") + `<span class="spacer"></span>` +
     (nHidden ? `<button type="button" class="linkish" id="toggle-hidden">${showHidden ? "Hide" : "Show"} ${nHidden} hidden</button>` : "") +
-    `<span>Burrow · read-only</span>`;
+    `<span>Sett · read-only</span>`;
 
   // Extensions (custom.js) can listen for this and read the state.
-  document.dispatchEvent(new CustomEvent("burrow:render", { detail: st }));
+  document.dispatchEvent(new CustomEvent("sett:render", { detail: st }));
 }
 
 // ---- card menu: pin / hide, per browser ------------------------------------------
@@ -291,7 +291,7 @@ document.addEventListener("click", (e) => {
   if (act) {
     const id = menu.dataset.id, set = act.dataset.act === "pin" ? pinned : hidden;
     set.has(id) ? set.delete(id) : set.add(id);
-    store.setList(act.dataset.act === "pin" ? "burrow.pinned" : "burrow.hidden", set);
+    store.setList(act.dataset.act === "pin" ? "sett.pinned" : "sett.hidden", set);
     menu.hidden = true;
     return render();
   }
@@ -323,11 +323,11 @@ $("#q").addEventListener("keydown", (e) => {
 });
 
 // ---- themes + look ------------------------------------------------------------
-// "auto" follows the device's light/dark setting. [ui] in burrow.toml can set the
+// "auto" follows the device's light/dark setting. [ui] in sett.toml can set the
 // accent colours, a wallpaper and a compact density on top of any theme.
 
 const dark = matchMedia("(prefers-color-scheme: dark)");
-function chosenTheme() { return store.get("burrow.theme") || state?.theme || "midnight"; }
+function chosenTheme() { return store.get("sett.theme") || state?.theme || "midnight"; }
 function applyTheme() {
   let t = chosenTheme();
   if (t === "auto") t = dark.matches ? (state?.ui?.auto_dark || "midnight") : (state?.ui?.auto_light || "daylight");
@@ -340,7 +340,7 @@ function applyLook(ui = {}) {
   const root = document.documentElement.style;
   // Accent colours tune the configured theme. Someone who picks a different theme
   // from the menu gets that theme as designed, not a clash of two palettes.
-  const ownTheme = !store.get("burrow.theme") || store.get("burrow.theme") === state?.theme;
+  const ownTheme = !store.get("sett.theme") || store.get("sett.theme") === state?.theme;
   for (const [key, prop] of [["accent", "--accent"], ["accent_2", "--accent-2"]]) {
     ui[key] && ownTheme ? root.setProperty(prop, ui[key]) : root.removeProperty(prop);
   }
@@ -359,7 +359,7 @@ function setupThemes(themes) {
   sel.value = chosenTheme();
   applyTheme();
 }
-$("#theme").addEventListener("change", (e) => { store.set("burrow.theme", e.target.value); applyTheme(); applyLook(state?.ui); });
+$("#theme").addEventListener("change", (e) => { store.set("sett.theme", e.target.value); applyTheme(); applyLook(state?.ui); });
 
 // ---- events + polling --------------------------------------------------------
 
@@ -367,7 +367,7 @@ $("#cats").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-cat]");
   if (!b) return;
   category = b.dataset.cat;
-  store.set("burrow.cat", category);
+  store.set("sett.cat", category);
   render();
 });
 $("#tabs").addEventListener("click", (e) => {
@@ -375,7 +375,7 @@ $("#tabs").addEventListener("click", (e) => {
   if (!a || e.ctrlKey || e.metaKey || e.shiftKey) return;
   e.preventDefault();
   viewId = a.dataset.view;
-  store.set("burrow.view", viewId);
+  store.set("sett.view", viewId);
   window.history.replaceState(null, "", `?view=${encodeURIComponent(viewId)}`);
   category = "All";
   render();

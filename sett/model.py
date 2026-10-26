@@ -35,7 +35,7 @@ class Host:
     storage: list[Storage] = field(default_factory=list)
     containers: list[Container] = field(default_factory=list)
     aliases: list[str] = field(default_factory=list)       # other names this host is known by (Docker /info Name)
-    tags: list[str] = field(default_factory=list)          # Proxmox tags; "burrow-hide" hides the host
+    tags: list[str] = field(default_factory=list)          # Proxmox tags; "sett-hide" hides the host
 
     def to_dict(self) -> dict:
         return asdict(self)

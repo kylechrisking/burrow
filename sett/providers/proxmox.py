@@ -2,10 +2,10 @@
 
 Create one with the PVEAuditor role (no new user needed):
 
-    pveum user token add root@pam burrow --privsep 1
-    pveum acl modify / --tokens 'root@pam!burrow' --roles PVEAuditor
+    pveum user token add root@pam sett --privsep 1
+    pveum acl modify / --tokens 'root@pam!sett' --roles PVEAuditor
 
-and save "root@pam!burrow=<secret>" in a mode-600 file.
+and save "root@pam!sett=<secret>" in a mode-600 file.
 """
 from __future__ import annotations
 

@@ -1,0 +1,52 @@
+# Config for running Sett against the test lab. Exercises views, thresholds,
+# stat shaping, icons and the [ui] settings.
+title = "Sett test lab"
+theme = "auto"
+search = "duckduckgo"
+categories = ["Media", "Media management", "Downloads", "Monitoring", "Home", "Network"]
+
+[ui]
+accent = "#a78bfa"
+clock = "24h"
+all_tab = true
+
+[docker]
+endpoints = ["unix:///var/run/docker.sock"]
+
+[[view]]
+name = "Media"
+categories = ["Media", "Media management", "Downloads"]
+sections = ["services"]
+
+[[view]]
+name = "Ops"
+categories = ["Monitoring", "Network", "Infrastructure", "Home"]
+links = ["Docs"]
+
+[override.glances]
+description = "Host metrics"
+rename = { CPU = "Processor" }
+tones = { CPU = { warn_above = 50, bad_above = 85 }, RAM = { warn_above = 75, bad_above = 90 } }
+
+[override.netdata]
+stats = ["Warning", "Critical"]
+tones = { Warning = { warn_above = 0 }, Critical = { bad_above = 0 } }
+
+[override.mosquitto]
+icon = "mdi-access-point-network"
+
+[override.whoami]
+icon = "https://raw.githubusercontent.com/traefik/traefik/master/docs/content/assets/img/traefik.logo.png"
+
+[[card]]
+name = "Lab memory"
+category = "Monitoring"
+icon = "mdi-memory"
+data = "http://localhost:61208/api/4/quicklook"
+fields = [["{mem}%", "RAM", { warn_above = 70, bad_above = 90 }], ["{cpu}%", "CPU"]]
+
+[[bookmark]]
+group = "Docs"
+name = "Sett repo"
+abbr = "BW"
+url = "https://github.com/kylechrisking/sett"

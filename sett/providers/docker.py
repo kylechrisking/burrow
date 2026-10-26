@@ -5,8 +5,8 @@ Endpoints are "unix:///var/run/docker.sock" (auto-detected when mounted) or
 front with CONTAINERS=1 INFO=1, so nothing can write.
 
 Labels on a container override discovery:
-    burrow.name, burrow.app, burrow.url, burrow.description, burrow.category,
-    burrow.icon, burrow.hide=true
+    sett.name, sett.app, sett.url, sett.description, sett.category,
+    sett.icon, sett.hide=true
 Homepage, Traefik and caddy-docker-proxy labels are read too (see with_borrowed_labels).
 """
 from __future__ import annotations
@@ -83,7 +83,7 @@ class DockerProvider(Provider):
                 continue
             name = (c.get("Names") or ["?"])[0].lstrip("/")
             labels = with_borrowed_labels(c.get("Labels") or {})
-            if labels.get("burrow.hide", "").lower() == "true":
+            if labels.get("sett.hide", "").lower() == "true":
                 continue
             state = c.get("State", "")
             running += state == "running"
@@ -97,7 +97,7 @@ class DockerProvider(Provider):
                 seen.add(pub)
                 endpoints.append(Endpoint(hid, pub, hint=f"{image} {name}", container=name,
                                           labels=labels, source=self.name))
-            if not seen and state == "running" and (labels.get("burrow.app") or c.get("HostConfig", {}).get("NetworkMode") == "host"):
+            if not seen and state == "running" and (labels.get("sett.app") or c.get("HostConfig", {}).get("NetworkMode") == "host"):
                 # host-networked: no published ports, let the hint pick the app's default port
                 endpoints.append(Endpoint(hid, 0, hint=f"{image} {name}", container=name,
                                           labels=labels, source=self.name))
@@ -112,8 +112,8 @@ _HOST_RULE = re.compile(r"Host\(\s*`([^`]+)`")
 
 
 def with_borrowed_labels(labels: dict[str, str]) -> dict[str, str]:
-    """Fill burrow.* labels from metadata people already have on their containers,
-    so migrating costs nothing. Explicit burrow.* labels always win.
+    """Fill sett.* labels from metadata people already have on their containers,
+    so migrating costs nothing. Explicit sett.* labels always win.
 
     - Homepage:  homepage.name / .description / .icon / .group / .href
     - Traefik:   traefik.http.routers.<r>.rule = Host(`app.example.com`)  -> link
@@ -125,13 +125,13 @@ def with_borrowed_labels(labels: dict[str, str]) -> dict[str, str]:
         if value and not out.get(key):
             out[key] = value
 
-    put("burrow.name", labels.get("homepage.name"))
-    put("burrow.description", labels.get("homepage.description"))
-    put("burrow.category", labels.get("homepage.group"))
-    put("burrow.url", labels.get("homepage.href"))
+    put("sett.name", labels.get("homepage.name"))
+    put("sett.description", labels.get("homepage.description"))
+    put("sett.category", labels.get("homepage.group"))
+    put("sett.url", labels.get("homepage.href"))
     icon = labels.get("homepage.icon", "")
     if icon and "/" not in icon:   # "sonarr.png" -> "sonarr"; URLs and mdi- icons are left alone
-        put("burrow.icon", re.sub(r"\.(png|svg|webp)$", "", icon))
+        put("sett.icon", re.sub(r"\.(png|svg|webp)$", "", icon))
 
     # Traefik: prefer a TLS router, else the first one with a Host() rule.
     routers: dict[str, dict] = {}
@@ -148,10 +148,10 @@ def with_borrowed_labels(labels: dict[str, str]) -> dict[str, str]:
         if best is None or (tls and not best[1]):
             best = (host.group(1), tls)
     if best:
-        put("burrow.url", f"{'https' if best[1] else 'http'}://{best[0]}")
+        put("sett.url", f"{'https' if best[1] else 'http'}://{best[0]}")
 
     caddy = labels.get("caddy") or labels.get("caddy_0")
     if caddy:
         first = caddy.split(",")[0].split()[0].strip()
-        put("burrow.url", first if first.startswith("http") else f"https://{first}")
+        put("sett.url", first if first.startswith("http") else f"https://{first}")
     return out

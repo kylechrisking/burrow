@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 
-USER_AGENT = "burrow/0.1 (+https://github.com/kylechrisking/burrow)"
+USER_AGENT = "sett/0.1 (+https://github.com/kylechrisking/sett)"
 
 _insecure = ssl.create_default_context()
 _insecure.check_hostname = False

@@ -1,6 +1,6 @@
 # Supported apps
 
-Burrow recognises **126 apps**. Generated from `burrow/apps/` by `tools/gen_apps_doc.py`.
+Sett recognises **126 apps**. Generated from `sett/apps/` by `tools/gen_apps_doc.py`.
 
 - **Ports** are where it looks when it has no Docker metadata. With Docker, the image name finds the app on any port.
 - **Stats** shows what the card adds beyond up/down, latency and version, and what (if anything) it needs in `secrets.toml`.

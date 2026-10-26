@@ -1,9 +1,9 @@
-# Burrow test lab: popular self-hosted apps, mostly on default ports, for
+# Sett test lab: popular self-hosted apps, mostly on default ports, for
 # fingerprint development. Nothing here is configured or persistent; it only
 # has to answer HTTP the way a fresh install does.
 #
 #   docker compose up -d        # on a throwaway Docker host
-#   BURROW_DOCKER=unix:///var/run/docker.sock python -m burrow
+#   SETT_DOCKER=unix:///var/run/docker.sock python -m sett
 #
 # Remapped host ports (shown first) are deliberate: real labs remap too,
 # which exercises identification by image name instead of port.
@@ -100,7 +100,7 @@ services:
     ports: ["3006:3000"]
     environment: { DB_TYPE: sqlite, DB_FILEPATH: /wiki/data.sqlite }
   searxng:        { image: searxng/searxng, ports: ["8380:8080"] }
-  duplicati:      { image: lscr.io/linuxserver/duplicati, ports: ["8200:8200"], environment: { <<: *lsio, SETTINGS_ENCRYPTION_KEY: "burrow-test-lab-only" } }
+  duplicati:      { image: lscr.io/linuxserver/duplicati, ports: ["8200:8200"], environment: { <<: *lsio, SETTINGS_ENCRYPTION_KEY: "sett-test-lab-only" } }
 
   # ---- dashboards + docker tools ---------------------------------------------------
   dockge:         { image: louislam/dockge, ports: ["5001:5001"], volumes: ["/var/run/docker.sock:/var/run/docker.sock:ro"] }
@@ -115,7 +115,7 @@ services:
     ports: ["3005:3000"]
     environment: { HOMEPAGE_ALLOWED_HOSTS: "${LAB_HOST:-localhost}:3005" }   # LAB_HOST = this machine's IP
 
-  # ---- labels: Homepage- and Traefik-style metadata Burrow should pick up --------------
+  # ---- labels: Homepage- and Traefik-style metadata Sett should pick up --------------
   whoami:
     image: traefik/whoami
     ports: ["8099:80"]

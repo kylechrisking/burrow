@@ -1,6 +1,6 @@
-# Burrow
+# Sett
 
-[![tests](https://github.com/kylechrisking/burrow/actions/workflows/ci.yml/badge.svg)](https://github.com/kylechrisking/burrow/actions/workflows/ci.yml)
+[![tests](https://github.com/kylechrisking/sett/actions/workflows/ci.yml/badge.svg)](https://github.com/kylechrisking/sett/actions/workflows/ci.yml)
 
 A homelab dashboard that works out what's running by itself.
 
@@ -9,7 +9,7 @@ apps behind their ports, then gives each one a card with its status and a few
 numbers worth seeing: Sonarr's queue, Plex streams, Pi-hole's block rate,
 qBittorrent's speed, that kind of thing. You don't write a services list.
 
-![Burrow, Midnight theme](docs/screenshots/desktop-midnight.jpg)
+![Sett, Midnight theme](docs/screenshots/desktop-midnight.jpg)
 
 ## Why I built it
 
@@ -18,7 +18,7 @@ hand-written service entries and over a thousand lines of custom CSS and JS.
 Every new container meant another YAML block, and half the time I forgot. Most
 of what a dashboard needs is already known by something: Proxmox knows what
 guests exist and their IPs, Docker knows what's published where, and the apps
-themselves will tell you who they are if you ask. Burrow asks.
+themselves will tell you who they are if you ask. Sett asks.
 
 It's one small container: plain Python with no dependencies and a vanilla JS
 front end. The config is optional.
@@ -28,8 +28,8 @@ front end. The config is optional.
 The short version, on any machine with Docker:
 
 ```bash
-mkdir burrow && cd burrow
-curl -fsSLO https://raw.githubusercontent.com/kylechrisking/burrow/main/compose.example.yaml
+mkdir sett && cd sett
+curl -fsSLO https://raw.githubusercontent.com/kylechrisking/sett/main/compose.example.yaml
 docker compose -f compose.example.yaml up -d
 ```
 
@@ -54,7 +54,7 @@ Anything it can't identify still gets a card with the container name and
 whether it's up, so nothing you've published goes missing.
 
 If you're already using Homepage labels on your containers (`homepage.name`,
-`homepage.icon` and friends), Burrow reads those. It also turns Traefik `Host()`
+`homepage.icon` and friends), Sett reads those. It also turns Traefik `Host()`
 rules and caddy-docker-proxy labels into links, so cards point at
 `https://sonarr.yourdomain` instead of an IP and port.
 
@@ -65,21 +65,21 @@ No Proxmox and no Docker API? Give it a subnet (`[scan] hosts =
 
 ```bash
 docker run --rm -v /path/to/homepage/config:/in:ro -v "$PWD":/out \
-  ghcr.io/kylechrisking/burrow python -m burrow import-homepage /in \
-  -o /out/burrow.toml --secrets /out/apps.toml
+  ghcr.io/kylechrisking/sett python -m sett import-homepage /in \
+  -o /out/sett.toml --secrets /out/apps.toml
 ```
 
-It reads your services, bookmarks, settings and widgets files. Apps Burrow
+It reads your services, bookmarks, settings and widgets files. Apps Sett
 can discover keep your names, descriptions and links, and their API keys go to
-a separate secrets file (mode 600). `customapi` widgets turn into Burrow's JSON
+a separate secrets file (mode 600). `customapi` widgets turn into Sett's JSON
 cards, your tabs become views, and weather, search and the clock format come
 along too. I tested it against my own Homepage config and it came out very close
 to what I'd ported by hand.
 
 ## Making it yours
 
-Everything here is optional and lives in `burrow.toml`.
-[burrow.example.toml](burrow.example.toml) has every setting with comments.
+Everything here is optional and lives in `sett.toml`.
+[sett.example.toml](sett.example.toml) has every setting with comments.
 Saving the file applies it within a few seconds, without a restart. If you
 break the syntax, the page tells you and keeps running on the last good
 version.
@@ -99,18 +99,18 @@ What you can change:
   discovery can't see, bookmarks, and weather in the header.
 - Renaming, re-describing, re-linking or hiding any card that was discovered.
 - Your own `custom.css` and `custom.js`. There's a slot on the page that
-  Burrow never redraws, so your panels stay put.
+  Sett never redraws, so your panels stay put.
 
 Separately, every card has a ⋯ menu to pin it to the top or hide it. That's
 saved per browser, so everyone in the house can set things up their own way.
 
 Numeric stats keep an hour of history and draw a small sparkline behind
-themselves. Icons are served and cached by Burrow itself, so the page still
+themselves. Icons are served and cached by Sett itself, so the page still
 looks right when the internet is down.
 
 ## Security
 
-Burrow only reads. It sends GET requests to Proxmox and Docker. It logs in to
+Sett only reads. It sends GET requests to Proxmox and Docker. It logs in to
 qBittorrent or Pi-hole only if you've given it credentials for stats. Secrets
 stay on the server and are never sent to the browser. It has no login screen,
 so run it on your LAN or behind your reverse proxy, the way most people run
@@ -128,8 +128,8 @@ spins up about 55 apps on a spare Docker host,
 answers, and the tests replay that offline. Each app has to be identified from
 its image, identified from its port alone, and not mistaken for anything else.
 
-To add an app, `python -m burrow identify http://host:port` shows what Burrow
-sees at an address. Most apps then need one line in `burrow/apps/`.
+To add an app, `python -m sett identify http://host:port` shows what Sett
+sees at an address. Most apps then need one line in `sett/apps/`.
 [docs/design.md](docs/design.md) explains how the pieces fit.
 
 ## License

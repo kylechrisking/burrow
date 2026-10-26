@@ -1,5 +1,5 @@
-# burrow config. Every key is optional — delete what you do not need.
-# Mount as /config/burrow.toml.
+# sett config. Every key is optional — delete what you do not need.
+# Mount as /config/sett.toml.
 
 title = "HomeLab"
 theme = "midnight"          # midnight | daylight | ember | forest | any file in web/themes/
@@ -10,7 +10,7 @@ categories = []             # display order, e.g. ["Media", "Downloads", "Networ
 # Token needs only PVEAuditor; see README.
 [proxmox]
 url = "https://192.168.1.10:8006"
-token_file = "/secrets/proxmox.token"   # one line: root@pam!burrow=xxxxxxxx-....
+token_file = "/secrets/proxmox.token"   # one line: root@pam!sett=xxxxxxxx-....
 # TLS is not verified (Proxmox ships a self-signed cert).
 # VMs without the QEMU guest agent or a static ipconfig: tell it their IP.
 # guest_addresses = { 105 = "192.168.1.105" }
@@ -34,7 +34,7 @@ file = "/secrets/apps.toml"
 [hide]
 apps = []                   # app ids, e.g. ["flaresolverr"]
 names = []                  # card names
-hosts = []                  # host names or IPs; or tag a Proxmox guest "burrow-hide"
+hosts = []                  # host names or IPs; or tag a Proxmox guest "sett-hide"
 
 # Edits to this file apply within a few seconds, no restart. A broken edit is
 # ignored (the page says why) and the last good config keeps running.
@@ -113,6 +113,6 @@ hosts = []                  # host names or IPs; or tag a Proxmox guest "burrow-
 # abbr = "GW"
 # url = "https://192.168.1.1"
 
-# Your own panels: put custom.css / custom.js next to this file. Burrow serves
+# Your own panels: put custom.css / custom.js next to this file. Sett serves
 # them and gives custom.js an empty <div id="panels"> it never re-renders, plus a
-# "burrow:render" event (detail = the state) after every refresh.
+# "sett:render" event (detail = the state) after every refresh.

@@ -3,7 +3,7 @@
 A name is looked up, in order, in:
   1. <config dir>/icons/<name>.svg|png|webp|jpg   your own files
   2. /app/icons (baked into the image at build time by `prefetch-icons`)
-  3. the disk cache (BURROW_CACHE, default /tmp/burrow-cache)
+  3. the disk cache (SETT_CACHE, default /tmp/sett-cache)
   4. the network, once, then cached:
        "sonarr"        -> dashboard-icons (svg, then png)
        "mdi-harddisk"  -> Material Design Icons (svg; the page tints it with the theme)
@@ -25,8 +25,8 @@ log = logging.getLogger(__name__)
 
 DASHBOARD_ICONS = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons"
 MDI = "https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg"
-BAKED = Path(os.environ.get("BURROW_ICONS", "/app/icons"))
-CACHE = Path(os.environ.get("BURROW_CACHE", "/tmp/burrow-cache")) / "icons"
+BAKED = Path(os.environ.get("SETT_ICONS", "/app/icons"))
+CACHE = Path(os.environ.get("SETT_CACHE", "/tmp/sett-cache")) / "icons"
 TYPES = {".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg"}
 _SAFE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,80}$")
 _misses: dict[str, float] = {}

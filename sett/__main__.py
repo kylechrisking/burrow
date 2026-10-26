@@ -1,7 +1,7 @@
-"""python -m burrow                 run the dashboard
-python -m burrow identify URL...  show what Burrow sees at an address (for writing fingerprints)
-python -m burrow prefetch-icons [DIR]   download every catalog icon (used when building the image)
-python -m burrow import-homepage DIR    turn a Homepage config folder into burrow.toml"""
+"""python -m sett                 run the dashboard
+python -m sett identify URL...  show what Sett sees at an address (for writing fingerprints)
+python -m sett prefetch-icons [DIR]   download every catalog icon (used when building the image)
+python -m sett import-homepage DIR    turn a Homepage config folder into sett.toml"""
 from __future__ import annotations
 
 import logging
@@ -26,7 +26,7 @@ def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "import-homepage":
         from .importer import main as import_main
         sys.exit(import_main(sys.argv[2:]))
-    logging.basicConfig(level=os.environ.get("BURROW_LOG", "INFO").upper(),
+    logging.basicConfig(level=os.environ.get("SETT_LOG", "INFO").upper(),
                         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
     cfg = config.load()
     engine = Engine(cfg)
@@ -41,7 +41,7 @@ def identify(args: list[str]) -> int:
     from .apps.base import REGISTRY
 
     if not args:
-        print("usage: python -m burrow identify http://host:port [--hint IMAGE] [--all]")
+        print("usage: python -m sett identify http://host:port [--hint IMAGE] [--all]")
         return 2
     hint = args[args.index("--hint") + 1] if "--hint" in args else ""
     try_all = "--all" in args

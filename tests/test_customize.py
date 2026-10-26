@@ -5,11 +5,11 @@ import tomllib
 import unittest
 from pathlib import Path
 
-from burrow import miniyaml
-from burrow.engine import _card_stats, _shape_stats
-from burrow.history import History, apply_rules, magnitude, number
-from burrow.importer import convert
-from burrow.model import Service, Stat
+from sett import miniyaml
+from sett.engine import _card_stats, _shape_stats
+from sett.history import History, apply_rules, magnitude, number
+from sett.importer import convert
+from sett.model import Service, Stat
 
 HOMEPAGE = {
     "services.yaml": """
@@ -161,11 +161,11 @@ class Importer(unittest.TestCase):
     def test_secrets_file_is_private(self):
         if os.name != "posix":
             self.skipTest("file modes are POSIX-only")
-        from burrow.importer import main
+        from sett.importer import main
         with tempfile.TemporaryDirectory() as tmp:
             for name, text in HOMEPAGE.items():
                 Path(tmp, name).write_text(text)
-            main([tmp, "-o", f"{tmp}/burrow.toml", "--secrets", f"{tmp}/apps.toml"])
+            main([tmp, "-o", f"{tmp}/sett.toml", "--secrets", f"{tmp}/apps.toml"])
             self.assertEqual(os.stat(f"{tmp}/apps.toml").st_mode & 0o777, 0o600)
 
 

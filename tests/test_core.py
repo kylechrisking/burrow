@@ -1,13 +1,13 @@
 """Offline tests: fingerprint matching, candidate ordering, host merging. python -m unittest"""
 import unittest
 
-from burrow import apps
-from burrow.apps.base import REGISTRY
-from burrow.apps.minecraft import _varint, motd
-from burrow.config import Config
-from burrow.engine import Engine
-from burrow.model import Container, Endpoint, Host, Inventory
-from burrow.net import Response
+from sett import apps
+from sett.apps.base import REGISTRY
+from sett.apps.minecraft import _varint, motd
+from sett.config import Config
+from sett.engine import Engine
+from sett.model import Container, Endpoint, Host, Inventory
+from sett.net import Response
 
 
 def resp(body: str, status=200, headers=None):
@@ -43,7 +43,7 @@ class Fingerprints(unittest.TestCase):
 
 class Cards(unittest.TestCase):
     def test_keys_templates_and_dynamic_labels(self):
-        from burrow.engine import _card_stats
+        from sett.engine import _card_stats
         data = {"a": "698.58 -0.4%", "a_label": "VOO", "media_free_gb": 3327, "clients": 30}
         stats = _card_stats([["a", "{a_label}"], ["{media_free_gb:,} GB", "Free"], ["clients", "Clients"], ["nope", "Missing"]], data)
         self.assertEqual([(s.label, s.value) for s in stats],
@@ -52,24 +52,24 @@ class Cards(unittest.TestCase):
 
 class Labels(unittest.TestCase):
     def test_homepage_labels_are_borrowed(self):
-        from burrow.providers.docker import with_borrowed_labels
+        from sett.providers.docker import with_borrowed_labels
         out = with_borrowed_labels({"homepage.name": "Who", "homepage.icon": "sonarr.png",
                                     "homepage.group": "Tools", "homepage.description": "d"})
-        self.assertEqual((out["burrow.name"], out["burrow.icon"], out["burrow.category"], out["burrow.description"]),
+        self.assertEqual((out["sett.name"], out["sett.icon"], out["sett.category"], out["sett.description"]),
                          ("Who", "sonarr", "Tools", "d"))
 
     def test_traefik_rule_becomes_link_and_tls_router_wins(self):
-        from burrow.providers.docker import with_borrowed_labels
+        from sett.providers.docker import with_borrowed_labels
         out = with_borrowed_labels({
             "traefik.http.routers.a.rule": "Host(`app.lan`)",
             "traefik.http.routers.b.rule": "Host(`app.example.com`) && PathPrefix(`/`)",
             "traefik.http.routers.b.tls": "true"})
-        self.assertEqual(out["burrow.url"], "https://app.example.com")
+        self.assertEqual(out["sett.url"], "https://app.example.com")
 
-    def test_explicit_burrow_label_wins_and_caddy_is_read(self):
-        from burrow.providers.docker import with_borrowed_labels
-        self.assertEqual(with_borrowed_labels({"caddy": "media.example.com"})["burrow.url"], "https://media.example.com")
-        self.assertEqual(with_borrowed_labels({"caddy": "x.com", "burrow.url": "http://mine"})["burrow.url"], "http://mine")
+    def test_explicit_sett_label_wins_and_caddy_is_read(self):
+        from sett.providers.docker import with_borrowed_labels
+        self.assertEqual(with_borrowed_labels({"caddy": "media.example.com"})["sett.url"], "https://media.example.com")
+        self.assertEqual(with_borrowed_labels({"caddy": "x.com", "sett.url": "http://mine"})["sett.url"], "http://mine")
 
 
 class Merge(unittest.TestCase):
@@ -77,11 +77,11 @@ class Merge(unittest.TestCase):
         e = Engine(Config(hide={"hosts": ["secret"]}))
         e.inventories = {
             "proxmox": Inventory(hosts=[
-                Host("pve:lxc/160", "burrow-lab", "lxc", "running", "10.0.0.160", tags=["burrow-hide", "test"]),
+                Host("pve:lxc/160", "sett-lab", "lxc", "running", "10.0.0.160", tags=["sett-hide", "test"]),
                 Host("pve:lxc/170", "secret", "lxc", "running", "10.0.0.170"),
                 Host("pve:lxc/131", "ai", "lxc", "running", "10.0.0.131")]),
-            "docker:x": Inventory(hosts=[Host("docker:burrow-lab", "burrow-lab", "docker")],
-                                  endpoints=[Endpoint("docker:burrow-lab", 8096, hint="jellyfin")]),
+            "docker:x": Inventory(hosts=[Host("docker:sett-lab", "sett-lab", "docker")],
+                                  endpoints=[Endpoint("docker:sett-lab", 8096, hint="jellyfin")]),
         }
         hosts, endpoints = e.merged()
         self.assertEqual(sorted(hosts), ["pve:lxc/131"])

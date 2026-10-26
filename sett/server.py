@@ -29,7 +29,7 @@ def list_themes() -> list[dict]:
 
 def make_handler(engine: Engine):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "burrow"
+        server_version = "sett"
 
         def log_message(self, fmt, *args):
             log.debug("%s %s", self.address_string(), fmt % args)
@@ -67,7 +67,7 @@ def make_handler(engine: Engine):
                 # third-party SVG on our origin: forbid scripts if someone opens it directly
                 return self._send(200, got[0], got[1], "max-age=86400", csp="default-src 'none'; style-src 'unsafe-inline'")
             if path in ("/custom.css", "/custom.js"):
-                # Your own additions, mounted next to burrow.toml. Empty when absent.
+                # Your own additions, mounted next to sett.toml. Empty when absent.
                 f = engine.cfg.config_dir / path.lstrip("/")
                 ctype = "text/css" if path.endswith(".css") else "text/javascript"
                 return self._send(200, f.read_bytes() if f.is_file() else b"", ctype + "; charset=utf-8", "no-cache")

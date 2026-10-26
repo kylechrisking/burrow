@@ -1,6 +1,6 @@
-# Installing Burrow
+# Installing Sett
 
-Burrow runs as one container (or as plain Python, see near the end). It only
+Sett runs as one container (or as plain Python, see near the end). It only
 reads from your lab. The steps below go from "it's running" to "it sees
 everything", and you can stop after any of them.
 
@@ -16,11 +16,11 @@ everything", and you can stop after any of them.
 ## 1. Run it
 
 Pick a machine that can reach your other hosts. A small LXC or VM is plenty;
-Burrow uses about 30 MB of RAM.
+Sett uses about 30 MB of RAM.
 
 ```bash
-mkdir -p burrow/config burrow/secrets && cd burrow
-curl -fsSLO https://raw.githubusercontent.com/kylechrisking/burrow/main/compose.example.yaml
+mkdir -p sett/config sett/secrets && cd sett
+curl -fsSLO https://raw.githubusercontent.com/kylechrisking/sett/main/compose.example.yaml
 docker compose -f compose.example.yaml up -d
 ```
 
@@ -31,30 +31,30 @@ Images are built for amd64 and arm64 (a Raspberry Pi works). If you'd rather
 build it yourself:
 
 ```bash
-git clone https://github.com/kylechrisking/burrow && cd burrow
+git clone https://github.com/kylechrisking/sett && cd sett
 docker compose -f compose.example.yaml up -d --build
 ```
 
 ## 2. Let it see Proxmox
 
-This is what turns Burrow from "one Docker host" into "the whole lab". It reads
+This is what turns Sett from "one Docker host" into "the whole lab". It reads
 your nodes, guests and storage, finds each guest's IP, and checks the usual
 ports on every guest for apps.
 
 Create a read-only API token. In a shell on any node:
 
 ```bash
-pveum user token add root@pam burrow --privsep 1
-pveum acl modify / --tokens 'root@pam!burrow' --roles PVEAuditor
+pveum user token add root@pam sett --privsep 1
+pveum acl modify / --tokens 'root@pam!sett' --roles PVEAuditor
 ```
 
 The first command prints a `value`. That's the secret, and it's only shown
 once.
 
 If you prefer the web UI: go to Datacenter → Permissions → API Tokens → Add,
-pick user `root@pam`, set the token ID to `burrow` and leave "Privilege
+pick user `root@pam`, set the token ID to `sett` and leave "Privilege
 Separation" ticked. Then go to Datacenter → Permissions → Add → API Token
-Permission, with path `/`, token `root@pam!burrow` and role `PVEAuditor`.
+Permission, with path `/`, token `root@pam!sett` and role `PVEAuditor`.
 
 PVEAuditor can look at everything and change nothing. With privilege
 separation on, the token can never do more than that role, even though it
@@ -63,11 +63,11 @@ belongs to root.
 Save it as one line in `secrets/proxmox.token`:
 
 ```bash
-echo 'root@pam!burrow=<the secret>' > secrets/proxmox.token
+echo 'root@pam!sett=<the secret>' > secrets/proxmox.token
 chmod 600 secrets/proxmox.token
 ```
 
-and create `config/burrow.toml`:
+and create `config/sett.toml`:
 
 ```toml
 [proxmox]
@@ -80,14 +80,14 @@ guests appear under Cluster.
 
 Guest IPs come from a static `ip=` in the guest's network config, from LXC
 interfaces, or from the QEMU guest agent. A VM with DHCP and no guest agent has
-no IP Burrow can find, so tell it:
+no IP Sett can find, so tell it:
 
 ```toml
 [proxmox]
 guest_addresses = { 105 = "192.168.1.105" }
 ```
 
-Tag a guest `burrow-hide` in Proxmox to keep it off the dashboard.
+Tag a guest `sett-hide` in Proxmox to keep it off the dashboard.
 
 ## 3. More Docker hosts
 
@@ -108,10 +108,10 @@ services:
     ports:
       - "192.168.1.20:2375:2375"     # that host's LAN IP; don't expose it further
     labels:
-      burrow.hide: "true"
+      sett.hide: "true"
 ```
 
-With `CONTAINERS=1 INFO=1` it answers the two read calls Burrow makes and
+With `CONTAINERS=1 INFO=1` it answers the two read calls Sett makes and
 refuses everything else. Then list it, keeping the local socket too:
 
 ```toml
@@ -121,21 +121,21 @@ endpoints = ["unix:///var/run/docker.sock", "tcp://192.168.1.20:2375"]
 
 Podman works the same way through its Docker-compatible socket.
 
-Burrow reads labels you may already have. Homepage's `homepage.name`,
+Sett reads labels you may already have. Homepage's `homepage.name`,
 `homepage.description`, `homepage.icon` and `homepage.group` carry over. A
 Traefik `Host()` rule or a caddy-docker-proxy `caddy=` label becomes the
-card's link. Its own labels win over all of those: `burrow.name`,
-`burrow.url`, `burrow.icon`, `burrow.description`, `burrow.category`,
-`burrow.app` and `burrow.hide=true`.
+card's link. Its own labels win over all of those: `sett.name`,
+`sett.url`, `sett.icon`, `sett.description`, `sett.category`,
+`sett.app` and `sett.hide=true`.
 
 ## 4. API keys for stats
 
 Without credentials, every card shows up/down, response time and, when the app
 gives it away freely, its version. For the interesting numbers (queue sizes,
-streams, blocked queries, transfer speeds) Burrow needs the app's API key.
+streams, blocked queries, transfer speeds) Sett needs the app's API key.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kylechrisking/burrow/main/secrets.example.toml -o secrets/apps.toml
+curl -fsSL https://raw.githubusercontent.com/kylechrisking/sett/main/secrets.example.toml -o secrets/apps.toml
 chmod 600 secrets/apps.toml
 ```
 
@@ -146,7 +146,7 @@ the change within a few seconds.
 
 ## 5. Put it behind your reverse proxy
 
-Burrow has no login of its own, so either keep it on your LAN or put it behind
+Sett has no login of its own, so either keep it on your LAN or put it behind
 whatever already guards your other apps.
 
 Caddy:
@@ -157,13 +157,13 @@ http://dash.home.lan {
 }
 ```
 
-Traefik labels on the Burrow container:
+Traefik labels on the Sett container:
 
 ```yaml
 labels:
   traefik.enable: "true"
-  traefik.http.routers.burrow.rule: "Host(`dash.home.lan`)"
-  traefik.http.services.burrow.loadbalancer.server.port: "8099"
+  traefik.http.routers.sett.rule: "Host(`dash.home.lan`)"
+  traefik.http.services.sett.loadbalancer.server.port: "8099"
 ```
 
 In Nginx Proxy Manager, add a proxy host pointing at port 8099. Nothing special
@@ -171,42 +171,42 @@ is needed: no websockets, and it works under any hostname.
 
 ## Running without Docker
 
-Burrow needs Python 3.11 or newer and nothing else.
+Sett needs Python 3.11 or newer and nothing else.
 
 ```bash
-git clone https://github.com/kylechrisking/burrow /opt/burrow
-cd /opt/burrow
-BURROW_CONFIG=./config/burrow.toml BURROW_SECRETS_FILE=./secrets/apps.toml python3 -m burrow
+git clone https://github.com/kylechrisking/sett /opt/sett
+cd /opt/sett
+SETT_CONFIG=./config/sett.toml SETT_SECRETS_FILE=./secrets/apps.toml python3 -m sett
 ```
 
-As a systemd service, in `/etc/systemd/system/burrow.service`:
+As a systemd service, in `/etc/systemd/system/sett.service`:
 
 ```ini
 [Unit]
-Description=Burrow homelab dashboard
+Description=Sett homelab dashboard
 After=network-online.target
 
 [Service]
-WorkingDirectory=/opt/burrow
-Environment=BURROW_CONFIG=/opt/burrow/config/burrow.toml
-Environment=BURROW_SECRETS_FILE=/opt/burrow/secrets/apps.toml
-ExecStart=/usr/bin/python3 -m burrow
+WorkingDirectory=/opt/sett
+Environment=SETT_CONFIG=/opt/sett/config/sett.toml
+Environment=SETT_SECRETS_FILE=/opt/sett/secrets/apps.toml
+ExecStart=/usr/bin/python3 -m sett
 Restart=on-failure
 DynamicUser=yes
-StateDirectory=burrow
-Environment=BURROW_CACHE=/var/lib/burrow
+StateDirectory=sett
+Environment=SETT_CACHE=/var/lib/sett
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Then run `systemctl enable --now burrow`. To read a local Docker socket, the
+Then run `systemctl enable --now sett`. To read a local Docker socket, the
 user needs to be in the `docker` group, so swap `DynamicUser` for a real user.
 
 Settings you can pass as environment variables instead of in the file:
-`BURROW_PORT`, `BURROW_TITLE`, `BURROW_THEME`, `BURROW_PROXMOX_URL`,
-`BURROW_PROXMOX_TOKEN_FILE`, `BURROW_DOCKER` (comma-separated; empty turns
-Docker off) and `BURROW_SCAN`.
+`SETT_PORT`, `SETT_TITLE`, `SETT_THEME`, `SETT_PROXMOX_URL`,
+`SETT_PROXMOX_TOKEN_FILE`, `SETT_DOCKER` (comma-separated; empty turns
+Docker off) and `SETT_SCAN`.
 
 ## Updating
 
@@ -228,8 +228,8 @@ given to the token (`--tokens`), not just to the user.
 
 **A guest has no IP.** See the `guest_addresses` note in step 2.
 
-**An app shows as a plain container card.** Burrow didn't recognise it.
-`docker exec burrow python -m burrow identify http://ip:port --all` shows what
+**An app shows as a plain container card.** Sett didn't recognise it.
+`docker exec sett python -m sett identify http://ip:port --all` shows what
 it sees. Please open an issue with that output.
 
 **A card says "add api_key to secrets for stats".** That's step 4.

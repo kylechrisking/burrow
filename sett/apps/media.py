@@ -54,7 +54,7 @@ def navidrome_stats(ctx: Ctx) -> list[Stat]:
     user, pw = ctx.secret.get("username"), ctx.secret.get("password")
     if not (user and pw):
         return []
-    q = f"u={user}&p=enc:{pw.encode().hex()}&v=1.16.1&c=burrow&f=json"
+    q = f"u={user}&p=enc:{pw.encode().hex()}&v=1.16.1&c=sett&f=json"
     j = ctx.json(f"/rest/getScanStatus.view?{q}").get("subsonic-response", {})
     ctx.version = j.get("serverVersion")
     scan = j.get("scanStatus", {})

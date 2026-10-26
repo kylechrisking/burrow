@@ -49,7 +49,7 @@ def _read_toml(path: Path) -> dict:
 
 
 def load() -> Config:
-    path = Path(os.environ.get("BURROW_CONFIG", "/config/burrow.toml"))
+    path = Path(os.environ.get("SETT_CONFIG", "/config/sett.toml"))
     raw: dict = {}
     files = {str(path): _mtime(path)}
     if path.is_file():
@@ -82,19 +82,19 @@ def load() -> Config:
     )
 
     env = os.environ
-    cfg.title = env.get("BURROW_TITLE", cfg.title)
-    cfg.theme = env.get("BURROW_THEME", cfg.theme)
-    cfg.port = int(env.get("BURROW_PORT", cfg.port))
-    if env.get("BURROW_PROXMOX_URL"):
-        cfg.proxmox["url"] = env["BURROW_PROXMOX_URL"]
-    if env.get("BURROW_PROXMOX_TOKEN_FILE"):
-        cfg.proxmox["token_file"] = env["BURROW_PROXMOX_TOKEN_FILE"]
-    if "BURROW_DOCKER" in env:   # empty or "none" turns Docker off, even with a socket mounted
-        cfg.docker["endpoints"] = [e.strip() for e in env["BURROW_DOCKER"].split(",") if e.strip() not in ("", "none")]
-    if env.get("BURROW_SCAN"):
-        cfg.scan["hosts"] = [h.strip() for h in env["BURROW_SCAN"].split(",") if h.strip()]
+    cfg.title = env.get("SETT_TITLE", cfg.title)
+    cfg.theme = env.get("SETT_THEME", cfg.theme)
+    cfg.port = int(env.get("SETT_PORT", cfg.port))
+    if env.get("SETT_PROXMOX_URL"):
+        cfg.proxmox["url"] = env["SETT_PROXMOX_URL"]
+    if env.get("SETT_PROXMOX_TOKEN_FILE"):
+        cfg.proxmox["token_file"] = env["SETT_PROXMOX_TOKEN_FILE"]
+    if "SETT_DOCKER" in env:   # empty or "none" turns Docker off, even with a socket mounted
+        cfg.docker["endpoints"] = [e.strip() for e in env["SETT_DOCKER"].split(",") if e.strip() not in ("", "none")]
+    if env.get("SETT_SCAN"):
+        cfg.scan["hosts"] = [h.strip() for h in env["SETT_SCAN"].split(",") if h.strip()]
 
-    secrets_file = env.get("BURROW_SECRETS_FILE") or raw.get("secrets", {}).get("file") or "/secrets/apps.toml"
+    secrets_file = env.get("SETT_SECRETS_FILE") or raw.get("secrets", {}).get("file") or "/secrets/apps.toml"
     sp = Path(secrets_file)
     files[str(sp)] = _mtime(sp)
     if sp.is_file():

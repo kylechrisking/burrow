@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from burrow.apps.base import REGISTRY  # noqa: E402
+from sett.apps.base import REGISTRY  # noqa: E402
 
 verified = set()
 fx = ROOT / "tests" / "fixtures" / "testlab.json"
@@ -23,7 +23,7 @@ for a in REGISTRY.values():
 lines = [
     "# Supported apps",
     "",
-    f"Burrow recognises **{len(REGISTRY)} apps**. Generated from `burrow/apps/` by `tools/gen_apps_doc.py`.",
+    f"Sett recognises **{len(REGISTRY)} apps**. Generated from `sett/apps/` by `tools/gen_apps_doc.py`.",
     "",
     "- **Ports** are where it looks when it has no Docker metadata. With Docker, the image name finds the app on any port.",
     "- **Stats** shows what the card adds beyond up/down, latency and version, and what (if anything) it needs in `secrets.toml`.",

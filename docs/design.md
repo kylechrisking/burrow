@@ -1,6 +1,6 @@
-# How Burrow works
+# How Sett works
 
-This is the tour for anyone who wants to change or extend Burrow. It's short,
+This is the tour for anyone who wants to change or extend Sett. It's short,
 because the code is too.
 
 ## The big picture
@@ -31,7 +31,7 @@ Four background threads do all the work:
    Then it works out which app is behind each port.
 3. **Check** visits every identified service every 15 seconds to see if it's
    up and to collect its stats.
-4. **Watch** reloads `burrow.toml` and the secrets file when they change.
+4. **Watch** reloads `sett.toml` and the secrets file when they change.
 
 There's no database. Everything lives in memory and comes back within a minute
 of a restart. The browser polls `/api/state` every five seconds and redraws.
@@ -43,7 +43,7 @@ front end is one JS file with no build step.
 
 ## Providers
 
-A provider is one file in `burrow/providers/`:
+A provider is one file in `sett/providers/`:
 
 ```python
 class Provider:
@@ -75,7 +75,7 @@ interface without touching the engine.
 
 ## Recognising apps
 
-Each app is a declaration in `burrow/apps/`. Most are one line:
+Each app is a declaration in `sett/apps/`. Most are one line:
 
 ```python
 App("prowlarr", "Prowlarr", "Media management", [9696], match=title("Prowlarr"),
@@ -133,7 +133,7 @@ secrets in it), `/api/history`, and `/icons/<name>`.
 
 ## Themes
 
-A theme is one CSS file of custom properties in `burrow/web/themes/`. The
+A theme is one CSS file of custom properties in `sett/web/themes/`. The
 layout CSS only reads variables, so a theme can't break the layout. The first
 line, `/* name: Midnight */`, is what the picker shows. Drop a new file in and
 it appears.

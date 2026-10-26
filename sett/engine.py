@@ -66,7 +66,7 @@ class Engine:
             threading.Thread(target=self._weather_loop, args=(self.gen,), daemon=True, name="weather").start()
 
     def _watch_loop(self) -> None:
-        """Reload burrow.toml and the secrets file when they change: display settings
+        """Reload sett.toml and the secrets file when they change: display settings
         apply on the next page refresh, provider settings restart discovery."""
         from . import config
         while True:
@@ -183,7 +183,7 @@ class Engine:
         hide_names = {n.lower() for n in self.cfg.hide.get("hosts", [])}
         hidden = {h.id for h in hosts.values()
                   if h.name.lower() in hide_names or (h.address or "") in hide_names
-                  or any(t.lower() in ("burrow-hide", "burrow.hide") for t in h.tags)}
+                  or any(t.lower() in ("sett-hide", "sett.hide") for t in h.tags)}
         hidden |= {h.id for h in hosts.values() if h.parent in hidden}
         for hid in hidden:
             del hosts[hid]
@@ -204,7 +204,7 @@ class Engine:
                 continue
             ports = [e.port]
             if e.port == 0:  # host-networked container: try its app's default port
-                ports = [a.ports[0] for a in apps.candidates(0, e.hint, e.labels.get("burrow.app"))[:1] if a.ports]
+                ports = [a.ports[0] for a in apps.candidates(0, e.hint, e.labels.get("sett.app"))[:1] if a.ports]
             for port in ports:
                 targets[(addr, port)] = {"host": h.id if h else None, "ep": e, "linkable": known or self.local_linkable}
 
@@ -249,7 +249,7 @@ class Engine:
         addr, port = key
         e: Endpoint | None = t["ep"]
         hint = e.hint if e else ""
-        forced = e.labels.get("burrow.app") if e else None
+        forced = e.labels.get("sett.app") if e else None
         named_by_image = None
         for app in apps.candidates(port, hint, forced):
             trusted = e is not None and (forced or app.hinted_by(hint))
@@ -269,11 +269,11 @@ class Engine:
             got = apps.fetch(addr, port, "/", "http", cache)
             image = e.hint.split()[0].split("/")[-1].split(":")[0]
             return Service(
-                id=f"{addr}:{port}", app="container", name=e.labels.get("burrow.name") or e.container,
-                category=e.labels.get("burrow.category") or "Containers", icon=e.labels.get("burrow.icon") or image,
-                description=e.labels.get("burrow.description"), host_id=t["host"], address=addr, port=port,
+                id=f"{addr}:{port}", app="container", name=e.labels.get("sett.name") or e.container,
+                category=e.labels.get("sett.category") or "Containers", icon=e.labels.get("sett.icon") or image,
+                description=e.labels.get("sett.description"), host_id=t["host"], address=addr, port=port,
                 scheme=got[0] if got else "tcp", container=e.container,
-                url=e.labels.get("burrow.url") or (f"{got[0]}://{addr}:{port}" if got and t["linkable"] else None),
+                url=e.labels.get("sett.url") or (f"{got[0]}://{addr}:{port}" if got and t["linkable"] else None),
                 status="up", latency_ms=got[1].elapsed_ms if got else None,
             )
         return None
@@ -281,14 +281,14 @@ class Engine:
     def _service(self, app, addr, port, t, pr) -> Service:
         e: Endpoint | None = t["ep"]
         labels = e.labels if e else {}
-        url = labels.get("burrow.url")
+        url = labels.get("sett.url")
         scheme = pr.scheme if pr else app.scheme
         if not url and t["linkable"] and app.kind == "http":
             url = f"{scheme}://{addr}:{port}{app.link_path}"
         return Service(
-            id=f"{addr}:{port}", app=app.id, name=labels.get("burrow.name") or app.display_name(e.hint if e else ""),
-            category=labels.get("burrow.category") or app.category, icon=labels.get("burrow.icon") or app.icon,
-            description=labels.get("burrow.description"), host_id=t["host"], address=addr, port=port,
+            id=f"{addr}:{port}", app=app.id, name=labels.get("sett.name") or app.display_name(e.hint if e else ""),
+            category=labels.get("sett.category") or app.category, icon=labels.get("sett.icon") or app.icon,
+            description=labels.get("sett.description"), host_id=t["host"], address=addr, port=port,
             scheme=scheme, url=url, container=e.container if e else None,
             status="up" if pr else "unknown", latency_ms=pr.latency_ms if pr else None,
             version=pr.version if pr else None, matched=bool(pr and pr.matched),

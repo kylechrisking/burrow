@@ -5,5 +5,5 @@ __pycache__/
 /secrets/
 *.token
 apps.toml
-burrow.toml
+sett.toml
 screenshots/raw/

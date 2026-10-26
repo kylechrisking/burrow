@@ -11,8 +11,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from burrow import apps, net
-from burrow.apps.base import REGISTRY
+from sett import apps, net
+from sett.apps.base import REGISTRY
 
 FIXTURES = Path(__file__).parent / "fixtures" / "testlab.json"
 
