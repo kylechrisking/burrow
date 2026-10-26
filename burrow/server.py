@@ -7,7 +7,9 @@ import mimetypes
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
 
+from . import icons
 from .engine import Engine
 
 log = logging.getLogger(__name__)
@@ -32,9 +34,11 @@ def make_handler(engine: Engine):
         def log_message(self, fmt, *args):
             log.debug("%s %s", self.address_string(), fmt % args)
 
-        def _send(self, code: int, body: bytes, ctype: str, cache: str = "no-store"):
+        def _send(self, code: int, body: bytes, ctype: str, cache: str = "no-store", csp: str | None = None):
             self.send_response(code)
             self.send_header("Content-Type", ctype)
+            if csp:
+                self.send_header("Content-Security-Policy", csp)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", cache)
             self.send_header("X-Content-Type-Options", "nosniff")
@@ -52,6 +56,16 @@ def make_handler(engine: Engine):
                 return self._json(state)
             if path == "/healthz":
                 return self._send(200, b"ok", "text/plain")
+            if path == "/api/history":
+                return self._json(engine.history.snapshot())
+            if path.startswith("/icons/"):
+                q = parse_qs(urlparse(self.path).query)
+                name = q["u"][0] if path == "/icons/url" and "u" in q else unquote(path[len("/icons/"):])
+                got = icons.resolve(name, engine.cfg.config_dir)
+                if not got:
+                    return self._send(404, b"", "text/plain", "max-age=3600")
+                # third-party SVG on our origin: forbid scripts if someone opens it directly
+                return self._send(200, got[0], got[1], "max-age=86400", csp="default-src 'none'; style-src 'unsafe-inline'")
             if path in ("/custom.css", "/custom.js"):
                 # Your own additions, mounted next to burrow.toml. Empty when absent.
                 f = engine.cfg.config_dir / path.lstrip("/")

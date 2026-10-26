@@ -106,21 +106,48 @@ hosts = ["192.168.1.0/24"]
 Tag a Proxmox guest `burrow-hide`, list hosts under `[hide] hosts = [...]`, or
 put `burrow.hide=true` on a container.
 
+## Coming from Homepage?
+
+```bash
+python -m burrow import-homepage /path/to/homepage/config -o burrow.toml --secrets apps.toml
+```
+
+The importer reads your `services.yaml`, `bookmarks.yaml`, `settings.yaml` and
+`widgets.yaml`:
+
+- Widgets for apps Burrow discovers become names, descriptions and friendly
+  links, and their keys go to the secrets file (mode 600, never printed).
+- `customapi` widgets become JSON cards with the same field mappings.
+- Everything else becomes a link card.
+- Tabs become views, and weather, search, theme colour and clock format carry
+  over.
+
 ## Make it yours
 
 Discovery gets you most of the way. The rest is optional config in
-`burrow.toml` (see [`burrow.example.toml`](burrow.example.toml)):
+`burrow.toml` (see [`burrow.example.toml`](burrow.example.toml)). Edits apply
+within a few seconds, without a restart.
 
-- `[[card]]`: a card fed by any JSON URL, with fields mapped to labels.
-  Good for home-grown APIs.
-- `[[service]]`: a link card for things discovery can't see, optionally
-  checked for up/down.
-- `[override."app"]` and `[links]`: rename, describe, re-link or hide anything
-  discovered.
-- `[[bookmark]]`, `[weather]` and `search`: links, the weather in the header,
-  and web search from the filter box.
-- `custom.css` / `custom.js` next to the config: your own panels, given a
-  `#panels` slot that Burrow never re-renders.
+- **Views.** Named pages shown as tabs, each with its own groups, sections and
+  bookmarks. Link straight to one with `?view=family`.
+- **Thresholds.** Colour any number or text, on discovered apps and custom
+  cards alike, e.g. `warn_below = 1500` or `bad_if = ["off", "error"]`.
+- **Stats.** Choose which stats a card shows, in what order and under what name.
+- **History.** Numeric stats and node CPU get a one-hour sparkline behind them.
+- **Look.** Four themes plus `auto`, which follows the device, and `[ui]` for
+  accent colours, a wallpaper, compact density and a 24-hour clock.
+- **Pin and hide.** The ⋯ on any card pins it to the top or hides it, per
+  browser, so each person in the house can set up their own.
+- **Icons.** Dashboard-icons names, `mdi-*` names, URLs, or your own files in
+  `icons/`. They are served and cached by Burrow, so they work offline.
+- **Cards.** `[[card]]` turns any JSON URL into a card, and `[[service]]` adds a
+  link card for anything discovery can't see.
+- **Overrides.** `[override."app"]` and `[links]` rename, describe, re-icon,
+  re-link or hide anything discovered.
+- **Header and links.** `[[bookmark]]`, `[weather]` and `search` add a links
+  section, the weather, and web search from the filter box.
+- **Your own panels.** `custom.css` and `custom.js` next to the config get a
+  `#panels` slot that Burrow never re-renders, plus a `burrow:render` event.
 
 ## Themes
 

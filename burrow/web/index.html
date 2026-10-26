@@ -10,7 +10,11 @@
   <link rel="stylesheet" href="custom.css">
   <script>
     // Apply the saved theme before first paint so there is no flash.
-    try { const t = localStorage.getItem("burrow.theme"); if (t) document.getElementById("theme-css").href = `themes/${t}.css`; } catch {}
+    try {
+      let t = localStorage.getItem("burrow.theme");
+      if (t === "auto") t = matchMedia("(prefers-color-scheme: dark)").matches ? "midnight" : "daylight";
+      if (t) document.getElementById("theme-css").href = `themes/${t}.css`;
+    } catch {}
   </script>
 </head>
 <body>
@@ -41,12 +45,15 @@
       </div>
     </header>
 
+    <nav id="tabs" class="tabs" aria-label="Views" hidden></nav>
+    <div id="config-error" class="config-error" role="alert" hidden></div>
+
     <!-- Slot for custom.js panels. Burrow never re-renders it. -->
     <div id="panels"></div>
 
     <section id="summary" class="summary" aria-label="Summary"></section>
 
-    <section class="block">
+    <section class="block" id="services-block">
       <div class="block-head">
         <h2>Services</h2><span class="count" id="svc-count"></span>
         <nav id="cats" class="cats" aria-label="Categories"></nav>
@@ -71,6 +78,7 @@
 
     <footer id="footer" class="footer"></footer>
   </div>
+  <div id="card-menu" class="card-menu" role="menu" hidden></div>
   <script src="app.js"></script>
   <script src="custom.js"></script>
 </body>

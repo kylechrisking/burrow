@@ -7,6 +7,9 @@ LABEL org.opencontainers.image.title="burrow" \
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 BURROW_PORT=8099
 WORKDIR /app
 COPY burrow ./burrow
+# Bake the catalog's icons in so the page works offline. Best effort: a build
+# without internet still succeeds and icons are fetched (and cached) at runtime.
+RUN python -m burrow prefetch-icons /app/icons || true
 
 # Runs as root by default so it can read a mounted /var/run/docker.sock.
 # Without the socket, run it as any user: `user: "1000:1000"` in compose.

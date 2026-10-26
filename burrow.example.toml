@@ -36,6 +36,28 @@ apps = []                   # app ids, e.g. ["flaresolverr"]
 names = []                  # card names
 hosts = []                  # host names or IPs; or tag a Proxmox guest "burrow-hide"
 
+# Edits to this file apply within a few seconds, no restart. A broken edit is
+# ignored (the page says why) and the last good config keeps running.
+
+# Look and feel, on top of the theme. Everything is optional.
+# [ui]
+# accent = "#38bdf8"          # main accent colour
+# accent_2 = "#a78bfa"        # second colour of the gradients
+# wallpaper = "https://example.com/bg.jpg"
+# density = "compact"         # tighter cards, good on phones
+# clock = "24h"
+# auto_dark = "midnight"      # what theme "auto" uses in dark mode...
+# auto_light = "daylight"     # ...and in light mode
+# all_tab = true              # add an "All" tab in front of your views
+
+# Views: named pages from one config, shown as tabs. Open one directly with
+# ?view=<name>, e.g. home.lan/?view=family. Every key is optional.
+# [[view]]
+# name = "Family"
+# categories = ["Shared"]                       # which service groups
+# sections = ["services", "links"]              # panels, summary, services, cluster, hosts, links
+# links = ["Kids"]                              # which bookmark groups
+
 # Header weather from open-meteo (no API key).
 # [weather]
 # label = "Nashville"
@@ -53,21 +75,33 @@ hosts = []                  # host names or IPs; or tag a Proxmox guest "burrow-
 # icon = "ubiquiti"
 # description = "UniFi gateway"
 
-# A card fed by any JSON URL. fields = [[key or "{template}", label], ...]
+# A card fed by any JSON URL. fields = [[key or "{template}", label, rule?], ...]
+# A rule colours the value (see "Thresholds" below).
 # [[card]]
-# name = "Spotify"
+# name = "Storage"
 # category = "Overview"
-# url = "https://open.spotify.com"
-# data = "http://192.168.1.20:8000/spotify"
-# fields = [["track", "Track"], ["artist", "Artist"], ["{volume}%", "Volume"]]
-# refresh = 30
+# url = "http://nas.lan"
+# data = "http://192.168.1.20:8800/disk.json"
+# fields = [["{free_gb:,} GB", "Free", { warn_below = 1500, bad_below = 500 }], ["state", "Guard", { ok_if = "ok", otherwise = "warn" }]]
+# refresh = 60
 
-# Rename, describe, re-link or hide anything discovered.
+# Rename, describe, re-link, re-icon or hide anything discovered, and shape its stats.
 # Keys: app id ("sonarr"), "app@host" ("pihole@pihole2"), or the card's name.
 # [override.sonarr]
 # description = "TV"
+# icon = "mdi-television"              # dashboard-icons name, mdi-*, or a URL
+# rename = { Queue = "Downloading" }
+# stats = ["Downloading", "Missing"]   # which stats, in this order
+# tones = { Missing = { warn_above = 0 } }
 # [override."pihole@pihole2"]
 # name = "Pi-hole 2"
+#
+# Thresholds: warn_above / bad_above / warn_below / bad_below compare the number
+# shown ("3,327 GB" is 3327). ok_if / warn_if / bad_if match the text (a value or
+# a list); otherwise = tone when no text rule matched. The worst tone wins.
+#
+# Icons: put your own files in an icons/ folder next to this file
+# (icons/nas.svg -> icon = "nas"). Everything else is fetched once and cached.
 
 # Friendly links: "ip:port" of a discovered service -> URL on its card.
 # [links]

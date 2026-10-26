@@ -245,15 +245,32 @@ Docker labels on a container override what discovery guessed:
 - No auth of its own in v0. Put it behind your reverse proxy or LAN-only rules,
   as you would Homepage.
 
-## Not in the MVP (next steps)
+## Customisation without complexity
+
+Customisation follows one rule: discovery decides **what exists**, and the
+config only changes **how it looks**. Every setting is optional, applies
+within seconds through a file watcher, and never needs a restart. A broken
+edit is ignored and shown on the page while the last good config keeps running.
+
+- **Views** filter the one state the server already has. They cost nothing on
+  the server, and `?view=` makes each one a bookmarkable page.
+- **Thresholds and stat shaping** run in `state()`, after the checks, so they
+  apply the same way to fingerprinted apps and to JSON cards.
+- **History** is a ring buffer of 60 samples at one-minute resolution for every
+  numeric stat and each node's CPU and RAM, served separately at
+  `/api/history` so the 5-second state poll stays small.
+- **Pin and hide** live in the browser's localStorage. They are per person by
+  design, and the config remains the place for changes everyone sees.
+- **Icons** are served same-origin from `/icons/`. Burrow looks in the user's
+  folder, then icons baked into the image, then a disk cache, and only then
+  fetches once from the CDN. `mdi-*` icons are tinted with the theme through a
+  CSS mask.
+
+## Next steps
 
 - Server-sent events instead of polling.
-- Self-hosted icons for offline labs. Icons come from the dashboard-icons CDN
-  for now, with a monogram fallback.
-- History and sparklines (a small ring buffer per stat).
-- More fingerprints, plus a `burrow identify <url>` CLI to help contributors
-  write them.
-- Proxmox backup, ZFS pool health and SMART, all of which still fit under PVEAuditor.
+- Proxmox backup jobs, ZFS pool health and SMART, all of which still fit under
+  PVEAuditor.
 - A Go port, if a single binary becomes worth more than hackability.
 
 ## Name

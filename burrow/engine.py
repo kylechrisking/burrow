@@ -8,11 +8,13 @@ import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from pathlib import Path
 from urllib.parse import urlparse
 
 from . import apps, net
 from .apps.base import REGISTRY, Ctx
 from .config import Config
+from .history import History, apply_rules
 from .model import Endpoint, Host, Service, Stat
 from .providers import load_providers
 
@@ -43,26 +45,75 @@ class Engine:
         self.identified_at: float | None = None
         self.weather: dict | None = None
         self.started = time.time()
+        self.gen = 0                    # bumped on reload; provider/weather threads of an old gen exit
+        self.force_identify = False
+        self.config_error: str | None = None
+        self.history = History()
 
     # ---- loops -------------------------------------------------------------
 
     def start(self) -> None:
-        log.info("providers: %s", ", ".join(p.name for p in self.providers) or "none (add [proxmox]/[docker]/[scan] config)")
-        for p in self.providers:
-            threading.Thread(target=self._provider_loop, args=(p,), daemon=True, name=p.name).start()
+        self._start_sources()
         threading.Thread(target=self._identify_loop, daemon=True, name="identify").start()
         threading.Thread(target=self._check_loop, daemon=True, name="check").start()
-        if self.cfg.weather.get("latitude") is not None:
-            threading.Thread(target=self._weather_loop, daemon=True, name="weather").start()
+        threading.Thread(target=self._watch_loop, daemon=True, name="watch").start()
 
-    def _provider_loop(self, p) -> None:
+    def _start_sources(self) -> None:
+        log.info("providers: %s", ", ".join(p.name for p in self.providers) or "none (add [proxmox]/[docker]/[scan] config)")
+        for p in self.providers:
+            threading.Thread(target=self._provider_loop, args=(p, self.gen), daemon=True, name=p.name).start()
+        if self.cfg.weather.get("latitude") is not None:
+            threading.Thread(target=self._weather_loop, args=(self.gen,), daemon=True, name="weather").start()
+
+    def _watch_loop(self) -> None:
+        """Reload burrow.toml and the secrets file when they change: display settings
+        apply on the next page refresh, provider settings restart discovery."""
+        from . import config
         while True:
-            st = self.pstatus[p.name]
+            time.sleep(3)
+            if not config.changed(self.cfg):
+                continue
+            try:
+                new = config.load()
+            except Exception as e:   # a half-saved or broken file: keep running on the last good one
+                self.config_error = f"config not reloaded: {e}"[:300]
+                log.warning(self.config_error)
+                self.cfg.files = {f: config._mtime(Path(f)) for f in self.cfg.files}
+                continue
+            self.config_error = None
+            restart = config.providers_changed(self.cfg, new) or self.cfg.weather != new.weather
+            new.port = self.cfg.port   # the listening socket cannot move
+            self.cfg = new
+            if restart:
+                with self.lock:
+                    self.gen += 1
+                    self.providers = load_providers(new)
+                    self.inventories = {}
+                    self.pstatus = {p.name: {"name": p.name, "ok": None, "error": None, "at": None, "detail": ""}
+                                    for p in self.providers}
+                self._start_sources()
+            self.force_identify = True
+            self.changed.set()
+            log.info("config reloaded%s", " (discovery restarted)" if restart else "")
+
+    def _provider_loop(self, p, gen: int) -> None:
+        while gen == self.gen:
+            st = self.pstatus.get(p.name)
+            if st is None:
+                return
             try:
                 inv = p.discover()
                 with self.lock:
+                    if gen != self.gen:
+                        return
                     self.inventories[p.name] = inv
                 st.update(ok=True, error=None, detail=p.describe())
+                for h in inv.hosts:
+                    m = h.metrics
+                    if m.get("cpu") is not None:
+                        self.history.record(f"{h.id}|cpu", m["cpu"] * 100)
+                    if m.get("maxmem") and m.get("mem") is not None:
+                        self.history.record(f"{h.id}|mem", m["mem"] / m["maxmem"] * 100)
             except Exception as e:  # keep the last good inventory
                 log.warning("%s: %s", p.name, e)
                 st.update(ok=False, error=str(e)[:200])
@@ -79,8 +130,9 @@ class Engine:
             hosts, endpoints = self.merged()
             sig = (frozenset((h.id, h.address, h.status) for h in hosts.values()),
                    frozenset((e.host_id, e.port, e.hint) for e in endpoints))
-            if sig != last_sig or time.monotonic() - last_run > self.cfg.identify_interval:
+            if self.force_identify or sig != last_sig or time.monotonic() - last_run > self.cfg.identify_interval:
                 if not self.providers or self.inventories:
+                    self.force_identify = False
                     t0 = time.monotonic()
                     try:
                         self.identify(hosts, endpoints)
@@ -198,13 +250,20 @@ class Engine:
         e: Endpoint | None = t["ep"]
         hint = e.hint if e else ""
         forced = e.labels.get("burrow.app") if e else None
+        named_by_image = None
         for app in apps.candidates(port, hint, forced):
+            trusted = e is not None and (forced or app.hinted_by(hint))
+            if trusted and named_by_image is None:
+                named_by_image = app
             pr = apps.probe(app, addr, port, cache)
             if pr is None:
                 continue
-            trusted = e is not None and (forced or app.hinted_by(hint))
             if pr.matched or trusted:
                 return self._service(app, addr, port, t, pr)
+        if named_by_image is not None and named_by_image.kind == "http":
+            # The image says what it is but it did not answer in time (busy, starting up):
+            # keep the identity and let the regular checks fill in status and stats.
+            return self._service(named_by_image, addr, port, t, None)
         if e is not None and e.container:
             # A container we cannot name: still show it, so nothing published is invisible.
             got = apps.fetch(addr, port, "/", "http", cache)
@@ -223,14 +282,16 @@ class Engine:
         e: Endpoint | None = t["ep"]
         labels = e.labels if e else {}
         url = labels.get("burrow.url")
+        scheme = pr.scheme if pr else app.scheme
         if not url and t["linkable"] and app.kind == "http":
-            url = f"{pr.scheme}://{addr}:{port}{app.link_path}"
+            url = f"{scheme}://{addr}:{port}{app.link_path}"
         return Service(
             id=f"{addr}:{port}", app=app.id, name=labels.get("burrow.name") or app.display_name(e.hint if e else ""),
             category=labels.get("burrow.category") or app.category, icon=labels.get("burrow.icon") or app.icon,
             description=labels.get("burrow.description"), host_id=t["host"], address=addr, port=port,
-            scheme=pr.scheme, url=url, container=e.container if e else None,
-            status="up", latency_ms=pr.latency_ms, version=pr.version, matched=pr.matched,
+            scheme=scheme, url=url, container=e.container if e else None,
+            status="up" if pr else "unknown", latency_ms=pr.latency_ms if pr else None,
+            version=pr.version if pr else None, matched=bool(pr and pr.matched),
         )
 
     def _manual_services(self) -> list[Service]:
@@ -284,6 +345,11 @@ class Engine:
         except Exception as e:
             s.status, s.error = "down", str(e)[:160]
         s.checked_at = time.time()
+        if s.status == "up":
+            for st in s.stats:
+                self.history.record(f"{s.id}|{st.label}", st.value)
+            if s.latency_ms is not None:
+                self.history.record(f"{s.id}|latency", s.latency_ms)
 
     def _check_app(self, s: Service) -> None:
         app = REGISTRY[s.app]
@@ -340,6 +406,7 @@ class Engine:
             if o.get("hide"):
                 continue
             d.update({k: o[k] for k in ("name", "description", "url", "category", "icon") if k in o})
+            d["stats"] = _shape_stats(s, o)
             svc_out.append(d)
 
         nodes = sorted((h for h in hosts.values() if h.kind == "node"), key=lambda h: h.name)
@@ -379,6 +446,9 @@ class Engine:
             "bookmarks": self.cfg.bookmarks,
             "weather": self.weather,
             "search": self.cfg.search,
+            "views": self.cfg.views,
+            "ui": self.cfg.ui,
+            "config_error": self.config_error,
             "providers": list(self.pstatus.values()),
         }
 
@@ -393,13 +463,13 @@ class Engine:
 
     # ---- weather -------------------------------------------------------------
 
-    def _weather_loop(self) -> None:
+    def _weather_loop(self, gen: int) -> None:
         w = self.cfg.weather
         imperial = w.get("units", "metric") == "imperial"
         q = (f"latitude={w['latitude']}&longitude={w['longitude']}&timezone=auto&forecast_days=1"
              "&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min"
              + ("&temperature_unit=fahrenheit" if imperial else ""))
-        while True:
+        while gen == self.gen:
             try:
                 j = net.get_json(f"https://api.open-meteo.com/v1/forecast?{q}", timeout=10)
                 cur, day = j["current"], j["daily"]
@@ -429,6 +499,26 @@ class _Blank(dict):
         return ""
 
 
+def _shape_stats(s: Service, o: dict) -> list[dict]:
+    """Apply an override's stat settings, in this order:
+        tones  = { Missing = { warn_above = 0 } }   rule tables, by the stat's own label
+        rename = { Queue = "Downloading" }
+        stats  = ["Downloading", "Missing"]       which to show, in this order (new or old names)
+    Each stat keeps `series`, its history key, so a rename never breaks a sparkline."""
+    tones, rename, pick = o.get("tones", {}), o.get("rename", {}), o.get("stats")
+    out = []
+    for st in s.stats:
+        tone = apply_rules(st, tones[st.label]) if st.label in tones else st.tone
+        out.append({"label": rename.get(st.label, st.label), "orig": st.label, "value": st.value,
+                    "tone": tone, "series": f"{s.id}|{st.label}"})
+    if pick is not None:
+        by = {**{d["orig"]: d for d in out}, **{d["label"]: d for d in out}}
+        out = [by[n] for n in pick if n in by]
+    for d in out:
+        del d["orig"]
+    return out
+
+
 def _card_stats(fields: list, data: dict) -> list[Stat]:
     """fields: [[spec, label], ...]. A spec is a JSON key, or a template such
     as "{media_free_gb} GB"; labels may be templates too ("{a_label}")."""
@@ -441,7 +531,10 @@ def _card_stats(fields: list, data: dict) -> list[Stat]:
             value = f"{value:,.1f}"
         elif isinstance(value, int) and not isinstance(value, bool):
             value = f"{value:,}"
-        out.append(Stat(label.format_map(flat) if "{" in label else label, str(value)))
+        st = Stat(label.format_map(flat) if "{" in label else label, str(value))
+        if len(f) > 2 and isinstance(f[2], dict):
+            st.tone = apply_rules(st, f[2])
+        out.append(st)
     return out
 
 

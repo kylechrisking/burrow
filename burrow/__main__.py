@@ -1,5 +1,7 @@
 """python -m burrow                 run the dashboard
-python -m burrow identify URL...  show what Burrow sees at an address (for writing fingerprints)"""
+python -m burrow identify URL...  show what Burrow sees at an address (for writing fingerprints)
+python -m burrow prefetch-icons [DIR]   download every catalog icon (used when building the image)
+python -m burrow import-homepage DIR    turn a Homepage config folder into burrow.toml"""
 from __future__ import annotations
 
 import logging
@@ -15,6 +17,15 @@ from .server import serve
 def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "identify":
         sys.exit(identify(sys.argv[2:]))
+    if len(sys.argv) > 1 and sys.argv[1] == "prefetch-icons":
+        from pathlib import Path
+        from .icons import prefetch
+        dest = Path(sys.argv[2] if len(sys.argv) > 2 else "/app/icons")
+        print(f"prefetched {prefetch(dest)} icons into {dest}")
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "import-homepage":
+        from .importer import main as import_main
+        sys.exit(import_main(sys.argv[2:]))
     logging.basicConfig(level=os.environ.get("BURROW_LOG", "INFO").upper(),
                         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
     cfg = config.load()

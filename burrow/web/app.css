@@ -125,7 +125,45 @@ h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
 .cat h4 { margin: 0 0 10px 2px; font-size: 12px; font-weight: 650; color: var(--text-muted); text-transform: uppercase; letter-spacing: .09em; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(272px, 1fr)); gap: 12px; }
 .svc { position: relative; padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 12px; transition: transform .15s ease, border-color .15s ease, background .15s ease; }
-a.svc:hover { transform: translateY(-2px); border-color: var(--border-strong); background: var(--surface-hover); }
+.svc:has(> .stretch):hover { transform: translateY(-2px); border-color: var(--border-strong); background: var(--surface-hover); }
+/* The whole card is a link (stretched over it) while the menu button stays clickable above it. */
+.stretch { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.stretch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.svc.pinned { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.svc.is-hidden { opacity: .45; }
+.menu-btn {
+  position: relative; z-index: 2; margin-left: auto; flex: none; cursor: pointer;
+  width: 26px; height: 22px; border-radius: 7px; border: 1px solid transparent; background: transparent;
+  color: var(--text-muted); font: 700 14px/1 var(--font); letter-spacing: 1px; opacity: 0; transition: opacity .15s;
+}
+.svc:hover .menu-btn, .menu-btn:focus-visible, .menu-btn[aria-expanded="true"] { opacity: 1; }
+.menu-btn:hover { border-color: var(--border-strong); color: var(--text); }
+@media (hover: none) { .menu-btn { opacity: .6; } }
+.card-menu {
+  position: absolute; z-index: 50; min-width: 150px; padding: 5px; display: flex; flex-direction: column;
+  background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); box-shadow: var(--shadow);
+}
+.card-menu button {
+  text-align: left; padding: 7px 10px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--text); font: inherit; font-size: 13px; cursor: pointer;
+}
+.card-menu button:hover, .card-menu button:focus-visible { background: var(--surface-hover); outline: none; }
+
+/* sparklines: drawn behind a stat's number, and under a node's meters */
+.stat { position: relative; overflow: hidden; }
+.stat > *:not(.spark) { position: relative; }
+.spark { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 60%; pointer-events: none; }
+.spark polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; opacity: .45; }
+.stat.warn .spark polyline { stroke: var(--warn); } .stat.bad .spark polyline { stroke: var(--bad); }
+.trend { height: 26px; position: relative; margin-top: -4px; }
+.node-spark { height: 100%; }
+.node-spark polyline { opacity: .7; }
+
+/* mdi-* icons are single-colour SVGs: tint them with the theme through a mask */
+.icon .mdi {
+  width: 24px; height: 24px; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  -webkit-mask: var(--src) center / contain no-repeat; mask: var(--src) center / contain no-repeat;
+}
 .svc.down { border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
 .svc.down::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(135deg, color-mix(in srgb, var(--bad) 12%, transparent), transparent 60%); pointer-events: none; }
 .svc-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -146,7 +184,8 @@ a.svc:hover { transform: translateY(-2px); border-color: var(--border-strong); b
 .stat.wide { grid-column: 1 / -1; }
 .stat.ok .v { color: var(--ok); } .stat.warn .v { color: var(--warn); } .stat.bad .v { color: var(--bad); }
 .svc-foot { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--text-muted); min-height: 16px; }
-.tag { font-family: var(--font-mono); font-size: 10.5px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--border-strong); }
+.tag { font-family: var(--font-mono); font-size: 10.5px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--border-strong);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; flex: none; }
 .note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; }
 
 .status.link { font-size: 15px; color: var(--text-muted); }
@@ -167,6 +206,34 @@ a.svc:hover .status.link { color: var(--accent); }
 }
 
 .empty { padding: 28px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border-strong); border-radius: var(--radius); }
+
+/* ---- views (tabs) ---- */
+.tabs { display: flex; gap: 4px; margin: -6px 0 22px; padding: 4px; width: fit-content; max-width: 100%; overflow-x: auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 999px; scrollbar-width: none;
+  backdrop-filter: blur(var(--blur)); -webkit-backdrop-filter: blur(var(--blur)); }
+.tabs a { padding: 7px 16px; border-radius: 999px; font-size: 13.5px; font-weight: 550; color: var(--text-muted); white-space: nowrap; }
+.tabs a:hover { color: var(--text); }
+.tabs a[aria-current="page"] { color: var(--text); background: var(--surface-2); box-shadow: 0 1px 0 var(--border-strong) inset; }
+
+.config-error { margin: 0 0 18px; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px;
+  color: var(--bad); border: 1px solid color-mix(in srgb, var(--bad) 45%, transparent);
+  background: color-mix(in srgb, var(--bad) 10%, transparent); font-family: var(--font-mono); }
+
+/* ---- look: wallpaper, compact density ---- */
+body.has-wallpaper { background: linear-gradient(color-mix(in srgb, var(--bg) 72%, transparent), color-mix(in srgb, var(--bg) 72%, transparent)), var(--wallpaper) center / cover fixed, var(--bg); }
+body.compact { font-size: 13px; }
+body.compact .page { padding-top: 16px; }
+body.compact .grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+body.compact .svc { padding: 10px 11px 9px; gap: 8px; }
+body.compact .icon { width: 32px; height: 32px; border-radius: 9px; }
+body.compact .icon img { width: 20px; height: 20px; }
+body.compact .stat { padding: 5px 7px; }
+body.compact .tile { padding: 10px 12px; }
+body.compact .tile .value { font-size: 22px; }
+body.compact .summary, body.compact .block { margin-bottom: 20px; }
+
+.linkish { border: 0; background: none; color: var(--text-muted); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.linkish:hover { color: var(--text); }
 
 /* ---- footer ---- */
 .footer { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 18px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
