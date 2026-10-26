@@ -90,7 +90,7 @@ class Merge(unittest.TestCase):
     def test_docker_engine_folds_into_guest_by_name(self):
         e = Engine(Config())
         e.inventories = {
-            "proxmox": Inventory(hosts=[Host("pve:lxc/131", "ai", "lxc", "running", "192.168.1.131", "pve:node/a")]),
+            "proxmox": Inventory(hosts=[Host("pve:lxc/131", "ai", "lxc", "running", "10.0.0.131", "pve:node/a")]),
             "docker:local": Inventory(
                 hosts=[Host("docker:ai", "ai", "docker", "running", None, containers=[Container("x", "img", "running")])],
                 endpoints=[Endpoint("docker:ai", 3001, hint="louislam/uptime-kuma:1")]),

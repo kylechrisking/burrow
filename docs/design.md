@@ -1,281 +1,146 @@
-# Burrow — design
+# How Burrow works
 
-## What it is
+This is the tour for anyone who wants to change or extend Burrow. It's short,
+because the code is too.
 
-A homelab dashboard you point at your Proxmox cluster and your Docker hosts.
-It finds the nodes, the guests, the containers and the apps behind their ports
-on its own, and shows each one with its live status and a few numbers that matter.
-You do not write a service list.
-
-## Why another dashboard
-
-| | Homepage | Homarr | Dashy | **burrow** |
-|---|---|---|---|---|
-| How services get on the page | YAML per service, or Docker labels on each container | Drag-and-drop UI, stored in its DB | YAML/UI per item | **Discovered**: Proxmox guests + Docker ports + fingerprinting |
-| Proxmox | One widget showing totals | Integration widget | Status-check only | Cluster is the backbone: nodes, guests, storage, and the guest IPs that drive probing |
-| App stats | ~150 widgets, each configured by hand | Integrations, configured in UI | Few | Turn on automatically for apps it recognises; API keys are optional extras |
-| Config | Many YAML files | Database + UI | One big YAML | Optional: one small TOML file plus a secrets file |
-| Runtime | Next.js | Next.js + DB | Vue + Node | Python stdlib, no dependencies, one container |
-
-Homepage and Homarr are excellent once configured. The gap is the first ten
-minutes and every change after that. In a lab built from Proxmox and Docker,
-most of what a dashboard needs is already known by the Proxmox API, the Docker
-API, and the apps themselves. Kyle's current Homepage has 40 hand-written service
-entries and about 1,100 lines of custom CSS and JS. Every one of those service
-entries could have been discovered.
-
-**Non-goals**: bookmarks, search bars, weather, iframes, user accounts,
-editing in the UI, and controlling anything. The dashboard only reads.
-
-## Architecture
+## The big picture
 
 ```
             ┌──────────────── one container ─────────────────┐
-            │                                                │
  Proxmox ◄──┤ providers/proxmox.py ─┐                        │
- API token  │                       │  Inventory             │
-            │                       ├─► hosts + endpoints ─┐ │
- Docker  ◄──┤ providers/docker.py ──┤                      │ │
- socket(s)  │                       │                      ▼ │
-            │ providers/static.py ──┘          engine: identify (fingerprint)
- extra IPs  │                                        │       │
-            │                                        ▼       │
-   apps  ◄──┤ apps/*.py  ◄──── check loop (15 s) ── services │
- (HTTP/TCP) │                                        │       │
-            │ server.py  GET /api/state ◄────────────┘       │
-            │            static web/ (vanilla JS, themes)    │
+            │                       │  hosts + endpoints     │
+ Docker  ◄──┤ providers/docker.py ──┼─────────────┐          │
+            │                       │             ▼          │
+ subnets ◄──┤ providers/static.py ──┘     engine: identify   │
+            │                                     │          │
+   apps  ◄──┤ apps/*.py  ◄── check loop (15 s) ── services   │
+            │                                     │          │
+            │ server.py: /api/state, /api/history, /icons    │
+            │ web/: one HTML page, app.js, themes            │
             └────────────────────────────────────────────────┘
 ```
 
-Three loops run in background threads:
+Four background threads do all the work:
 
-1. **Providers** each run on their own interval and return an *Inventory*.
-   That is a list of **hosts** (nodes, VMs, containers, Docker engines) and
-   **endpoints** (an address and port, plus a hint such as the image name).
-2. **Identify** runs when the set of hosts or endpoints changes, and every few
-   minutes anyway. It merges hosts from different providers into one: a Docker
-   engine called `ai` *is* the Proxmox guest `ai`. It then gives every guest
-   with an IP the app's well-known ports, does a TCP connect, and asks each
-   app's fingerprint whether it recognises the answer.
-3. **Check** re-probes each identified service every 15 seconds and collects
-   its stats.
+1. **Providers** each poll their source on their own schedule and return
+   hosts (nodes, guests, Docker engines) and endpoints (a port on a host,
+   plus a hint such as the image name).
+2. **Identify** runs whenever that picture changes, and every five minutes
+   anyway. It merges hosts first. A Docker engine whose hostname is `media` is
+   the Proxmox guest called `media`, so its containers move onto that guest.
+   Then it works out which app is behind each port.
+3. **Check** visits every identified service every 15 seconds to see if it's
+   up and to collect its stats.
+4. **Watch** reloads `burrow.toml` and the secrets file when they change.
 
-The browser polls `GET /api/state` every few seconds and renders it. There is
-no database. State lives in memory and is rebuilt within a minute of a restart.
+There's no database. Everything lives in memory and comes back within a minute
+of a restart. The browser polls `/api/state` every five seconds and redraws.
 
-### Why this stack
+I picked plain Python with no dependencies on purpose. `http.server`, `urllib`,
+`socket`, `ssl`, `tomllib` and a thread pool cover everything, and the whole
+thing is a few thousand lines that one person can read in an evening. The
+front end is one JS file with no build step.
 
-- **Python standard library only.** `http.server`, `urllib`, `ssl`, `socket`,
-  `tomllib` and `concurrent.futures` cover everything. There is no `pip install`.
-  The image is `python:3.13-alpine` plus about 100 KB of code. Contributors can
-  read the whole thing in an afternoon.
-- **Vanilla JS, no build step.** One `app.js` file renders the state with
-  template literals. Themes are plain CSS. Anyone can fork it and edit it in place.
-- **Threads, not asyncio.** Probing is I/O-bound and bounded. A pool of 64
-  threads probes a small lab in a second or two, and the code stays sequential
-  and easy to follow.
+## Providers
 
-Each of these can be revisited if it stops earning its place. A Go rewrite
-would give a single static binary, and that is the obvious next step if the
-project grows.
-
-## Discovery providers
-
-A provider is one self-contained module in `burrow/providers/`. It never
-writes to the thing it reads.
+A provider is one file in `burrow/providers/`:
 
 ```python
 class Provider:
-    name: str = "example"          # shown in the footer, used as id prefix
-    interval: float = 30           # seconds between discover() calls
+    name = "example"     # shown in the footer
+    interval = 30        # seconds between discover() calls
 
     @classmethod
-    def from_config(cls, cfg: Config) -> "list[Provider] | None":
-        """Return zero or more instances (Docker returns one per engine).
-        Auto-detection lives here (e.g. Docker: is /var/run/docker.sock mounted?)."""
+    def from_config(cls, cfg) -> list["Provider"] | None:
+        """Zero or more instances. Docker returns one per endpoint."""
 
     def discover(self) -> Inventory:
-        """Read the source and return what exists right now.
-        Raise on failure; the engine keeps the last good inventory and
-        shows the error in the provider status strip."""
+        """What exists right now. Raise on failure: the engine keeps the
+        last good answer and shows the error in the footer."""
 ```
+
+The three that ship:
+
+- **proxmox** reads `/cluster/resources` and `/cluster/status`. A guest's IP
+  comes from a static `ip=` in its config first, then LXC interfaces or the
+  QEMU guest agent. It only ever needs the PVEAuditor role.
+- **docker** reads `/info` and `/containers/json`. Published ports become
+  endpoints, and the image name becomes the hint that names the app. It also
+  borrows Homepage, Traefik and caddy-docker-proxy labels.
+- **static** takes IPs, hostnames or subnets. A subnet gets swept for any port
+  an app is known to use.
+
+Something like Kubernetes, TrueNAS, libvirt or mDNS would fit the same
+interface without touching the engine.
+
+## Recognising apps
+
+Each app is a declaration in `burrow/apps/`. Most are one line:
 
 ```python
-@dataclass
-class Inventory:
-    hosts: list[Host]          # id, name, kind, status, address, parent, metrics, storage, containers
-    endpoints: list[Endpoint]  # host_id, port, hint (image/container name), container, labels
+App("prowlarr", "Prowlarr", "Media management", [9696], match=title("Prowlarr"),
+    images=["prowlarr"], stats=prowlarr_stats, needs="api_key")
 ```
 
-Shipped providers:
+For each endpoint, the engine builds a list of candidates: apps whose image
+keyword appears in the hint first, then apps that normally use that port. It
+fetches each candidate's probe path and asks its matcher. Responses are cached
+for the pass, because a busy port like 8080 can have a dozen candidates that
+all want `/`.
 
-| Provider | Turns on when | Reads |
-|---|---|---|
-| `proxmox` | `[proxmox] url` and a token file exist | `/cluster/resources` (nodes, guests, storage, tags), `/cluster/status` (node IPs), guest IPs from a static `ip=` in the config, LXC `interfaces`, or the QEMU guest agent. Needs only the **PVEAuditor** role. A guest tagged `burrow-hide` is left out. |
-| `docker` | the socket is mounted, or `[docker] endpoints` is set | `/info`, `/containers/json`. Published ports become endpoints, the image name becomes the hint, and `burrow.*` labels act as overrides. Homepage labels, Traefik `Host()` rules and caddy-docker-proxy labels are borrowed for names, icons and links. Read-only; use a socket proxy for remote engines. Podman's Docker-compatible socket works the same way. |
-| `static` | `[scan] hosts` is set | Plain IPs, hostnames or **subnets**. A subnet is swept for any port an app uses; addresses that answer become hosts, named by reverse DNS. This is the zero-config path for labs with no Proxmox and no Docker API. |
+A Docker image name is trusted. If the image says `linuxserver/sonarr`, the
+card is Sonarr even if Sonarr happens to be slow to answer at that moment.
+Anything published that matches nothing still gets a card with the container
+name, so it doesn't vanish.
 
-Adding a provider means adding a file and one line in `providers/__init__.py`.
-Candidates that fit the interface without engine changes: Kubernetes, Unraid,
-TrueNAS, libvirt, and mDNS.
+Matchers available: `title()` and `title_is()` (the stricter one, for short
+names), `body()`, `header()`, `json_has()`, `json_at()` for nested keys, and
+`any_of()`. Non-HTTP apps set `kind`. Minecraft uses the server-list ping, so
+player counts need no plugin. MQTT sends a CONNECT and reads the CONNACK.
 
-## App fingerprints
+A stats function gets a small context with HTTP helpers and that app's secrets,
+and returns a list of `Stat(label, value, tone)`. Without secrets, a card still
+shows up/down, latency, and the version if the app gives it out.
 
-An app is a small declaration in `burrow/apps/`. Most need no code:
+### Tests that use real apps
 
-```python
-App(
-    id="prowlarr", name="Prowlarr", category="Downloads", icon="prowlarr",
-    ports=[9696], images=["prowlarr"],
-    probe="/", match=title("Prowlarr"),
-    stats=arr_stats("v1"),        # optional; may use secrets["prowlarr"]
-)
-```
+I don't trust a fingerprint I haven't seen match. `testlab/compose.yaml` runs
+about 55 apps on a spare Docker host. Most are on default ports, and a few are
+remapped on purpose, because real people remap.
+`tools/record_fixtures.py` saves what each one answers, and
+`tests/test_fixtures.py` replays those answers offline. Every recorded app has
+to be identified from its image, identified from its port alone when it's on a
+default port, and not claimed by any other fingerprint. That last check is the
+one that catches mistakes, like a short title such as "Actual" matching some
+unrelated page.
 
-- `probe` + `match` decide identity. Several apps can share a port (8080 is
-  qBittorrent on one host and Open WebUI on another), so responses are cached
-  per pass and each candidate checks the same answer.
-- `images` match Docker image names. A hint makes the app the first candidate
-  and also probes containers that publish odd ports.
-- `stats(ctx)` returns `[Stat(label, value)]`. The context gives `get`/`json`
-  helpers and that app's secrets. Without secrets an app still shows up/down,
-  latency and, where the app exposes it unauthenticated, its version.
-- Non-HTTP apps set `kind`. `minecraft` speaks the server-list ping, so player
-  counts need no plugin or RCON; `mqtt` sends a CONNECT and reads the CONNACK,
-  which also reveals whether the broker is open.
-- `variants` maps image keywords to display names for forks that share an API
-  (Overseerr, Jellyseerr and Seerr are one fingerprint).
+## The page
 
-### Keeping fingerprints honest
+`server.py` serves the page, `/api/state` (everything the page needs, with no
+secrets in it), `/api/history`, and `/icons/<name>`.
 
-`testlab/compose.yaml` runs about 55 popular apps, mostly on default ports and
-some remapped on purpose. `tools/record_fixtures.py` stores what each one
-answers to `/` and to every candidate probe path, in
-`tests/fixtures/testlab.json`. `tests/test_fixtures.py` replays that offline and
-asserts three things for every app: it is identified from its image, it is
-identified by port alone when it sits on a default port, and **no other
-fingerprint matches it**. Run `python -m burrow identify http://host:port` to
-see what Burrow sees before writing a new one.
-
-Secrets are per app id, in a separate TOML file that should be mode 600:
-
-```toml
-[sonarr]
-api_key = "..."
-[qbittorrent]
-username = "..."
-password = "..."
-[uptime-kuma]
-status_page = "homelab"
-```
+- Views, thresholds, renamed or chosen stats, and links all happen in
+  `state()`, after the checks. They work the same on discovered apps and on
+  JSON cards.
+- History is 60 samples per numeric stat at one-minute resolution. It's served
+  on its own endpoint, so the five-second poll stays small.
+- Icons come from your own `icons/` folder, then from icons baked into the
+  image, then from a disk cache, and only then from the CDN, once. `mdi-*`
+  icons are single-colour, so the page tints them with the theme using a CSS
+  mask.
+- Pins and hidden cards are kept in each browser's localStorage. They're meant
+  to be personal; the config is for things everyone should see.
 
 ## Themes
 
-A theme is **one CSS file of custom properties** in `web/themes/`. Layout lives
-in `app.css`, which only consumes variables, so a theme cannot break the layout.
+A theme is one CSS file of custom properties in `burrow/web/themes/`. The
+layout CSS only reads variables, so a theme can't break the layout. The first
+line, `/* name: Midnight */`, is what the picker shows. Drop a new file in and
+it appears.
 
-```css
-/* name: Midnight */
-:root {
-  --bg: #0b0f1a;            /* page */
-  --bg-glow-1: #3b4cca33;   /* two soft radial glows behind the page */
-  --bg-glow-2: #06b6d422;
-  --surface: #121829cc;     /* cards; alpha shows the glow through */
-  --surface-2: #1a2236;     /* bars, chips */
-  --border: #ffffff12;
-  --text: #e6e9f2;
-  --text-muted: #8a93a8;
-  --accent: #7c8cff;
-  --accent-2: #22d3ee;      /* gradients pair accent → accent-2 */
-  --ok: #34d399; --warn: #fbbf24; --bad: #f87171;
-  --radius: 14px;
-  --shadow: 0 1px 0 #ffffff08 inset, 0 8px 24px #0006;
-  --blur: 14px;
-  --font: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-}
-```
-
-The first line `/* name: ... */` is the display name. The server lists
-`web/themes/*.css`, so dropping a file in makes it selectable. You can mount a
-folder at `/app/burrow/web/themes/custom/` for your own themes. Shipped themes:
-**Midnight** (dark, the default), **Daylight** (light) and **Ember** (warm dark).
-The choice is kept per browser, and the default comes from the config.
-
-## Config
-
-Everything is optional. The whole file:
-
-```toml
-title = "HomeLab"
-theme = "midnight"
-
-[proxmox]
-url = "https://192.168.1.124:8006"
-token_file = "/secrets/proxmox.token"   # one line: user@realm!tokenid=uuid
-
-[docker]
-endpoints = ["unix:///var/run/docker.sock", "tcp://192.168.1.130:2375"]
-
-[scan]
-hosts = ["192.168.1.123"]
-
-[secrets]
-file = "/secrets/apps.toml"
-
-[[service]]                 # manual extras, for what cannot be discovered
-name = "Router"
-url = "https://192.168.1.1"
-category = "Network"
-
-[hide]
-apps = ["flaresolverr"]
-```
-
-Docker labels on a container override what discovery guessed:
-`burrow.name`, `burrow.app`, `burrow.url`, `burrow.hide=true`.
-
-## Security posture
-
-- Read-only everywhere. The Proxmox token needs PVEAuditor and nothing more.
-  The provider only ever sends `GET`, and so does the Docker provider.
-  Recommend `tecnativa/docker-socket-proxy` with `CONTAINERS=1 INFO=1` for
-  remote engines.
-- Secrets are read from files and are never included in `/api/state`.
-- No auth of its own in v0. Put it behind your reverse proxy or LAN-only rules,
-  as you would Homepage.
-
-## Customisation without complexity
-
-Customisation follows one rule: discovery decides **what exists**, and the
-config only changes **how it looks**. Every setting is optional, applies
-within seconds through a file watcher, and never needs a restart. A broken
-edit is ignored and shown on the page while the last good config keeps running.
-
-- **Views** filter the one state the server already has. They cost nothing on
-  the server, and `?view=` makes each one a bookmarkable page.
-- **Thresholds and stat shaping** run in `state()`, after the checks, so they
-  apply the same way to fingerprinted apps and to JSON cards.
-- **History** is a ring buffer of 60 samples at one-minute resolution for every
-  numeric stat and each node's CPU and RAM, served separately at
-  `/api/history` so the 5-second state poll stays small.
-- **Pin and hide** live in the browser's localStorage. They are per person by
-  design, and the config remains the place for changes everyone sees.
-- **Icons** are served same-origin from `/icons/`. Burrow looks in the user's
-  folder, then icons baked into the image, then a disk cache, and only then
-  fetches once from the CDN. `mdi-*` icons are tinted with the theme through a
-  CSS mask.
-
-## Next steps
+## What's next
 
 - Server-sent events instead of polling.
-- Proxmox backup jobs, ZFS pool health and SMART, all of which still fit under
-  PVEAuditor.
-- A Go port, if a single binary becomes worth more than hackability.
-
-## Name
-
-**Burrow**, chosen 2026-10-24. It digs through your lab and finds what's living
-in there. The working title was `lab-dashboard`. Identifiers follow the name:
-the `burrow` package, `BURROW_*` environment variables, `burrow.*` Docker labels
-and `burrow.toml`.
+- Proxmox backup jobs, ZFS pool health and SMART data, all of which are
+  readable with PVEAuditor.
+- More fingerprints, from whatever people run.

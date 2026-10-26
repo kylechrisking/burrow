@@ -113,7 +113,7 @@ services:
   homepage:
     image: ghcr.io/gethomepage/homepage
     ports: ["3005:3000"]
-    environment: { HOMEPAGE_ALLOWED_HOSTS: "192.168.1.160:3005" }
+    environment: { HOMEPAGE_ALLOWED_HOSTS: "${LAB_HOST:-localhost}:3005" }   # LAB_HOST = this machine's IP
 
   # ---- labels: Homepage- and Traefik-style metadata Burrow should pick up --------------
   whoami:

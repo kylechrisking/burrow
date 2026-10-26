@@ -1,12 +1,12 @@
 services:
   burrow:
-    build: .
-    # image: ghcr.io/kylechrisking/burrow:latest   # once published
+    image: ghcr.io/kylechrisking/burrow:latest
+    # build: .        # or build from a clone of the repo
     container_name: burrow
     restart: unless-stopped
     ports:
       - "8099:8099"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro   # optional: local Docker discovery
-      - ./config:/config:ro                            # optional: burrow.toml
-      - ./secrets:/secrets:ro                          # optional: proxmox.token, apps.toml (chmod 600)
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # this host's containers (optional)
+      - ./config:/config:ro                            # burrow.toml, custom.css/js, icons/ (optional)
+      - ./secrets:/secrets:ro                          # proxmox.token, apps.toml (optional)

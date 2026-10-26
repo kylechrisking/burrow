@@ -1,7 +1,7 @@
 """Static hosts: plain IPs, names, or whole subnets to fingerprint.
 
     [scan]
-    hosts = ["192.168.1.123", "nas.lan", "192.168.1.0/24"]
+    hosts = ["192.168.1.50", "nas.lan", "192.168.1.0/24"]
 
 A subnet is swept for any port an app is known to use, and only addresses
 that answer become hosts, named by reverse DNS where it resolves. That is

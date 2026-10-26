@@ -1,174 +1,136 @@
 # Burrow
 
-A homelab dashboard that **finds what's running on its own**. Point it at your
-Proxmox cluster and your Docker hosts. It lists the nodes, guests and containers,
-recognises the apps behind their ports (Sonarr, Plex, Pi-hole and friends), and
-shows each one with its live status and the numbers that matter.
+[![tests](https://github.com/kylechrisking/burrow/actions/workflows/ci.yml/badge.svg)](https://github.com/kylechrisking/burrow/actions/workflows/ci.yml)
 
-There is no service list to write. One container, no dependencies, themeable.
+A homelab dashboard that works out what's running by itself.
 
-> Status: early MVP. See [docs/design.md](docs/design.md) for how it works and where it's going.
+Point it at Proxmox and Docker and it finds your nodes, VMs, containers and the
+apps behind their ports, then gives each one a card with its status and a few
+numbers worth seeing: Sonarr's queue, Plex streams, Pi-hole's block rate,
+qBittorrent's speed, that kind of thing. You don't write a services list.
 
-![Midnight theme](docs/screenshots/desktop-midnight.jpg)
+![Burrow, Midnight theme](docs/screenshots/desktop-midnight.jpg)
 
-## Quickstart
+## Why I built it
 
-```bash
-git clone https://github.com/kylechrisking/burrow && cd burrow
-docker compose -f compose.example.yaml up -d --build
-```
+I ran Homepage for a long time and liked it, but my config grew to about forty
+hand-written service entries and over a thousand lines of custom CSS and JS.
+Every new container meant another YAML block, and half the time I forgot. Most
+of what a dashboard needs is already known by something: Proxmox knows what
+guests exist and their IPs, Docker knows what's published where, and the apps
+themselves will tell you who they are if you ask. Burrow asks.
 
-Open `http://<host>:8099`. With only the Docker socket mounted you'll see that
-host's containers straight away. For the rest of the lab, add Proxmox.
+It's one small container: plain Python with no dependencies and a vanilla JS
+front end. The config is optional.
 
-### Add Proxmox (recommended)
+## Install
 
-Create a **read-only** API token on any node. PVEAuditor can see everything
-and change nothing, and no new user is needed:
-
-```bash
-pveum user token add root@pam burrow --privsep 1
-pveum acl modify / --tokens 'root@pam!burrow' --roles PVEAuditor
-```
-
-Save `root@pam!burrow=<secret>` as `secrets/proxmox.token` (`chmod 600`), then
-create `config/burrow.toml`:
-
-```toml
-[proxmox]
-url = "https://192.168.1.10:8006"
-token_file = "/secrets/proxmox.token"
-```
-
-The dashboard now reads every guest's IP. LXC IPs come from the API; VMs need
-the QEMU guest agent or a static `ipconfig`. It then fingerprints well-known
-ports on each guest.
-
-### Stats that need a key
-
-Without credentials every card shows up/down, latency and, where the app
-exposes it, its version. For queue sizes, streams, blocked queries and so on,
-copy [`secrets.example.toml`](secrets.example.toml) to `secrets/apps.toml`, fill
-in what you have, and `chmod 600` it. Secrets never leave the server.
-
-### Other Docker hosts
-
-Run [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy)
-with `CONTAINERS=1 INFO=1` on each one, then:
-
-```toml
-[docker]
-endpoints = ["unix:///var/run/docker.sock", "tcp://192.168.1.20:2375"]
-```
-
-Labels on a container override discovery: `burrow.name`, `burrow.app`,
-`burrow.url` and `burrow.hide=true`.
-
-## What it recognises
-
-Over 120 apps: the *arr stack, every common download client, Plex, Jellyfin
-and Emby, Immich, Home Assistant and friends, Pi-hole, AdGuard, Traefik,
-Proxmox VE and Backup Server, TrueNAS, Unraid, UniFi, Grafana, Prometheus,
-Netdata, Uptime Kuma, Vaultwarden, Paperless-ngx, Nextcloud, Gitea, the other
-dashboards, and more. It also speaks Minecraft's server-list ping and MQTT. The
-full list is in **[docs/apps.md](docs/apps.md)**, including which cards show
-stats and what they need.
-
-Fingerprints are checked against real installs. `testlab/compose.yaml` runs
-about 55 apps on a spare Docker host, `tools/record_fixtures.py` records their
-answers, and the test suite replays them, so a change can't quietly break
-identification.
-
-A container it can't identify still gets a card with its name and status, so
-nothing you've published is invisible. Adding an app is usually one line in
-`burrow/apps/`. `python -m burrow identify http://host:port` shows what Burrow
-sees at an address, which is most of the work of writing a new fingerprint.
-
-## Already using Homepage, Traefik or Caddy labels?
-
-Burrow reads them. A container with `homepage.name`, `homepage.description`,
-`homepage.icon` and `homepage.group` labels keeps its name, description, icon
-and group. A Traefik `Host()` rule or a caddy-docker-proxy `caddy=` label
-becomes the card's link, so links come out as `https://sonarr.example.com`
-instead of `IP:port`, with no config at all.
-
-## No Proxmox, no Docker API?
-
-Give it your subnet and it finds things on its own:
-
-```toml
-[scan]
-hosts = ["192.168.1.0/24"]
-```
-
-## Hide things
-
-Tag a Proxmox guest `burrow-hide`, list hosts under `[hide] hosts = [...]`, or
-put `burrow.hide=true` on a container.
-
-## Coming from Homepage?
+The short version, on any machine with Docker:
 
 ```bash
-python -m burrow import-homepage /path/to/homepage/config -o burrow.toml --secrets apps.toml
+mkdir burrow && cd burrow
+curl -fsSLO https://raw.githubusercontent.com/kylechrisking/burrow/main/compose.example.yaml
+docker compose -f compose.example.yaml up -d
 ```
 
-The importer reads your `services.yaml`, `bookmarks.yaml`, `settings.yaml` and
-`widgets.yaml`:
+Then open `http://<that-machine>:8099`. With just the Docker socket you'll see
+that host's containers right away.
 
-- Widgets for apps Burrow discovers become names, descriptions and friendly
-  links, and their keys go to the secrets file (mode 600, never printed).
-- `customapi` widgets become JSON cards with the same field mappings.
-- Everything else becomes a link card.
-- Tabs become views, and weather, search, theme colour and clock format carry
-  over.
+To see the whole lab, give it a read-only Proxmox token. That's two commands
+on any node, and it never gets more than the PVEAuditor role. The full guide,
+covering Proxmox, more Docker hosts, API keys for stats, reverse proxies,
+running without Docker, and updating, is in **[docs/install.md](docs/install.md)**.
 
-## Make it yours
+## What it knows about
 
-Discovery gets you most of the way. The rest is optional config in
-`burrow.toml` (see [`burrow.example.toml`](burrow.example.toml)). Edits apply
-within a few seconds, without a restart.
+About 125 apps so far, including the *arr stack, the common download clients,
+Plex, Jellyfin, Emby, Immich, Home Assistant, Pi-hole, AdGuard, Traefik,
+Proxmox, PBS, TrueNAS, Unraid, UniFi, Grafana, Prometheus, Netdata, Uptime
+Kuma, Vaultwarden, Paperless and Nextcloud. It can also ping a Minecraft server
+for its player count, and check an MQTT broker. [docs/apps.md](docs/apps.md)
+has the whole list and says which cards show stats and what they need.
 
-- **Views.** Named pages shown as tabs, each with its own groups, sections and
-  bookmarks. Link straight to one with `?view=family`.
-- **Thresholds.** Colour any number or text, on discovered apps and custom
-  cards alike, e.g. `warn_below = 1500` or `bad_if = ["off", "error"]`.
-- **Stats.** Choose which stats a card shows, in what order and under what name.
-- **History.** Numeric stats and node CPU get a one-hour sparkline behind them.
-- **Look.** Four themes plus `auto`, which follows the device, and `[ui]` for
-  accent colours, a wallpaper, compact density and a 24-hour clock.
-- **Pin and hide.** The ⋯ on any card pins it to the top or hides it, per
-  browser, so each person in the house can set up their own.
-- **Icons.** Dashboard-icons names, `mdi-*` names, URLs, or your own files in
-  `icons/`. They are served and cached by Burrow, so they work offline.
-- **Cards.** `[[card]]` turns any JSON URL into a card, and `[[service]]` adds a
-  link card for anything discovery can't see.
-- **Overrides.** `[override."app"]` and `[links]` rename, describe, re-icon,
-  re-link or hide anything discovered.
-- **Header and links.** `[[bookmark]]`, `[weather]` and `search` add a links
-  section, the weather, and web search from the filter box.
-- **Your own panels.** `custom.css` and `custom.js` next to the config get a
-  `#panels` slot that Burrow never re-renders, plus a `burrow:render` event.
+Anything it can't identify still gets a card with the container name and
+whether it's up, so nothing you've published goes missing.
 
-## Themes
+If you're already using Homepage labels on your containers (`homepage.name`,
+`homepage.icon` and friends), Burrow reads those. It also turns Traefik `Host()`
+rules and caddy-docker-proxy labels into links, so cards point at
+`https://sonarr.yourdomain` instead of an IP and port.
 
-Midnight (default), Daylight, Ember and Forest ship in `burrow/web/themes/`. A theme
-is a single CSS file of variables. Drop in a new one and it appears in the
-picker.
+No Proxmox and no Docker API? Give it a subnet (`[scan] hosts =
+["192.168.1.0/24"]`) and it'll go looking.
 
-## Run without Docker
+## Moving over from Homepage
 
 ```bash
-BURROW_CONFIG=./config/burrow.toml BURROW_SECRETS_FILE=./secrets/apps.toml python3 -m burrow
+docker run --rm -v /path/to/homepage/config:/in:ro -v "$PWD":/out \
+  ghcr.io/kylechrisking/burrow python -m burrow import-homepage /in \
+  -o /out/burrow.toml --secrets /out/apps.toml
 ```
 
-Python 3.11 or newer. Standard library only.
+It reads your services, bookmarks, settings and widgets files. Apps Burrow
+can discover keep your names, descriptions and links, and their API keys go to
+a separate secrets file (mode 600). `customapi` widgets turn into Burrow's JSON
+cards, your tabs become views, and weather, search and the clock format come
+along too. I tested it against my own Homepage config and it came out very close
+to what I'd ported by hand.
+
+## Making it yours
+
+Everything here is optional and lives in `burrow.toml`.
+[burrow.example.toml](burrow.example.toml) has every setting with comments.
+Saving the file applies it within a few seconds, without a restart. If you
+break the syntax, the page tells you and keeps running on the last good
+version.
+
+What you can change:
+
+- Views, shown as tabs. I have Home, Infra and Apps, plus a Family view with
+  just the shared stuff (Plex, recipes, games), which my fiancée has
+  bookmarked as `?view=family`.
+- Thresholds that colour a number or a word. For example, my storage card
+  goes amber under 1.5 TB free and red under 500 GB.
+- Which stats a card shows, in what order and under what names.
+- Theme: Midnight, Daylight, Ember, Forest, or Auto to follow your device. You
+  can also set your own accent colours, a wallpaper, a compact layout for
+  phones, and a 24-hour clock.
+- Cards for anything with a JSON endpoint, plain link cards for things
+  discovery can't see, bookmarks, and weather in the header.
+- Renaming, re-describing, re-linking or hiding any card that was discovered.
+- Your own `custom.css` and `custom.js`. There's a slot on the page that
+  Burrow never redraws, so your panels stay put.
+
+Separately, every card has a ⋯ menu to pin it to the top or hide it. That's
+saved per browser, so everyone in the house can set things up their own way.
+
+Numeric stats keep an hour of history and draw a small sparkline behind
+themselves. Icons are served and cached by Burrow itself, so the page still
+looks right when the internet is down.
 
 ## Security
 
-Everything is read-only. It sends only GET requests to Proxmox and Docker,
-plus a session login to qBittorrent and Pi-hole when you give it credentials.
-It has no authentication of its own, so keep it on your LAN or behind your
-reverse proxy.
+Burrow only reads. It sends GET requests to Proxmox and Docker. It logs in to
+qBittorrent or Pi-hole only if you've given it credentials for stats. Secrets
+stay on the server and are never sent to the browser. It has no login screen,
+so run it on your LAN or behind your reverse proxy, the way most people run
+Homepage.
+
+## Hacking on it
+
+```bash
+python -m unittest discover -s tests -t .
+```
+
+Fingerprints are tested against real responses. [`testlab/compose.yaml`](testlab/compose.yaml)
+spins up about 55 apps on a spare Docker host,
+[`tools/record_fixtures.py`](tools/record_fixtures.py) records what each one
+answers, and the tests replay that offline. Each app has to be identified from
+its image, identified from its port alone, and not mistaken for anything else.
+
+To add an app, `python -m burrow identify http://host:port` shows what Burrow
+sees at an address. Most apps then need one line in `burrow/apps/`.
+[docs/design.md](docs/design.md) explains how the pieces fit.
 
 ## License
 

@@ -338,8 +338,11 @@ dark.addEventListener?.("change", applyTheme);
 
 function applyLook(ui = {}) {
   const root = document.documentElement.style;
+  // Accent colours tune the configured theme. Someone who picks a different theme
+  // from the menu gets that theme as designed, not a clash of two palettes.
+  const ownTheme = !store.get("burrow.theme") || store.get("burrow.theme") === state?.theme;
   for (const [key, prop] of [["accent", "--accent"], ["accent_2", "--accent-2"]]) {
-    ui[key] ? root.setProperty(prop, ui[key]) : root.removeProperty(prop);
+    ui[key] && ownTheme ? root.setProperty(prop, ui[key]) : root.removeProperty(prop);
   }
   ui.wallpaper ? root.setProperty("--wallpaper", `url("${String(ui.wallpaper).replace(/"/g, "%22")}")`) : root.removeProperty("--wallpaper");
   document.body.classList.toggle("has-wallpaper", !!ui.wallpaper);
@@ -356,7 +359,7 @@ function setupThemes(themes) {
   sel.value = chosenTheme();
   applyTheme();
 }
-$("#theme").addEventListener("change", (e) => { store.set("burrow.theme", e.target.value); applyTheme(); });
+$("#theme").addEventListener("change", (e) => { store.set("burrow.theme", e.target.value); applyTheme(); applyLook(state?.ui); });
 
 // ---- events + polling --------------------------------------------------------
 
