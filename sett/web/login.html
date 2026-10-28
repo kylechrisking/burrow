@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sign in · Sett</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link id="theme-css" rel="stylesheet" href="themes/midnight.css">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="custom.css">
+  <script src="login.js"></script>
+</head>
+<body>
+  <main class="login">
+    <form id="login" class="card" autocomplete="on">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M4 5h7v6H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 13h7v6H4z"/></svg>
+        </div>
+        <h1>Sign in</h1>
+      </div>
+      <label>User name<input id="user" name="username" autocomplete="username" required autofocus></label>
+      <label>Password<input id="password" name="password" type="password" autocomplete="current-password" required></label>
+      <label id="code-row" hidden>Code from your authenticator app
+        <input id="code" name="code" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" autocomplete="one-time-code"></label>
+      <p id="msg" class="login-msg" role="alert" hidden></p>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>

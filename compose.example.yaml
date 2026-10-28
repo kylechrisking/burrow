@@ -10,3 +10,4 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro   # this host's containers (optional)
       - ./config:/config:ro                            # sett.toml, custom.css/js, icons/ (optional)
       - ./secrets:/secrets:ro                          # proxmox.token, apps.toml (optional)
+      - ./data:/data                                   # sparkline history, sign-in key (optional)

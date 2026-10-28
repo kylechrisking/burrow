@@ -1,11 +1,13 @@
 """python -m sett                 run the dashboard
 python -m sett identify URL...  show what Sett sees at an address (for writing fingerprints)
 python -m sett prefetch-icons [DIR]   download every catalog icon (used when building the image)
-python -m sett import-homepage DIR    turn a Homepage config folder into sett.toml"""
+python -m sett import-homepage DIR    turn a Homepage config folder into sett.toml
+python -m sett add-user NAME [--totp]  make a sign-in for [auth] (password, optional 2FA code)"""
 from __future__ import annotations
 
 import logging
 import os
+import signal
 import sys
 from urllib.parse import urlparse
 
@@ -26,12 +28,23 @@ def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "import-homepage":
         from .importer import main as import_main
         sys.exit(import_main(sys.argv[2:]))
+    if len(sys.argv) > 1 and sys.argv[1] == "add-user":
+        from .auth import add_user_cli
+        sys.exit(add_user_cli(sys.argv[2:]))
     logging.basicConfig(level=os.environ.get("SETT_LOG", "INFO").upper(),
                         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
     cfg = config.load()
     engine = Engine(cfg)
+
+    def stop(signum, frame):   # docker stop sends SIGTERM: keep the sparklines first
+        engine.save_history()
+        sys.exit(0)
+    signal.signal(signal.SIGTERM, stop)
     engine.start()
-    serve(engine, cfg.port)
+    try:
+        serve(engine, cfg.port)
+    except KeyboardInterrupt:
+        engine.save_history()
 
 
 def identify(args: list[str]) -> int:

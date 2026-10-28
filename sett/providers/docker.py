@@ -94,6 +94,8 @@ class DockerProvider(Provider):
                 pub = p.get("PublicPort")
                 if not pub or p.get("Type") != "tcp" or pub in seen:
                     continue
+                if _loopback(p.get("IP", "")):
+                    continue   # published to 127.0.0.1 only: nothing else on the network can reach it
                 seen.add(pub)
                 endpoints.append(Endpoint(hid, pub, hint=f"{image} {name}", container=name,
                                           labels=labels, source=self.name))
@@ -106,6 +108,10 @@ class DockerProvider(Provider):
 
     def describe(self) -> str:
         return self._summary
+
+
+def _loopback(ip: str) -> bool:
+    return ip.startswith("127.") or ip == "::1"
 
 
 _HOST_RULE = re.compile(r"Host\(\s*`([^`]+)`")

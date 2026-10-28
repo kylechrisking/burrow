@@ -30,6 +30,7 @@ CACHE = Path(os.environ.get("SETT_CACHE", "/tmp/sett-cache")) / "icons"
 TYPES = {".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg"}
 _SAFE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,80}$")
 _misses: dict[str, float] = {}
+MAX_MISSES = 2000
 
 
 def _key(name: str) -> str:
@@ -91,6 +92,9 @@ def resolve(name: str, config_dir: Path) -> tuple[bytes, str] | None:
         f = None
     if f:
         return f.read_bytes(), TYPES[f.suffix]
+    if len(_misses) > MAX_MISSES:   # forget the oldest half rather than grow forever
+        for k, _ in sorted(_misses.items(), key=lambda kv: kv[1])[:MAX_MISSES // 2]:
+            del _misses[k]
     _misses[key] = time.time()
     return None
 

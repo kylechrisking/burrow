@@ -40,6 +40,11 @@ function uptime(s) {
   const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
   return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
 }
+function since(ts) {
+  if (!ts) return "";
+  const s = Math.max(0, Math.round(Date.now() / 1000 - ts));
+  return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m` : `${Math.floor(s / 86400)}d`;
+}
 function ago(ts) {
   if (!ts) return "never";
   const s = Math.max(0, Math.round(Date.now() / 1000 - ts));
@@ -87,7 +92,7 @@ function currentView() {
   const vs = views();
   return vs.find((v) => v.id === viewId) || vs[0] || { id: "all", name: "All" };
 }
-const inView = (v, s) => !v.categories || v.categories.includes(s.category) || pinned.has(s.id);
+const inView = (v, s) => !v.categories || v.categories.includes(s.category) || pinned.has(s.key);
 const showSection = (v, name) => !v.sections || v.sections.includes(name);
 
 function renderTabs() {
@@ -139,15 +144,19 @@ function hostCard(h, svcByHost) {
   const storage = (h.storage || []).map((st) => meter(st.name, st.used, st.total)).join("");
   const containers = h.containers || [];
   const running = containers.filter((c) => c.state === "running").length;
-  const shown = guests.filter((g) => matches(g.name, g.vmid, g.address));
-  if (query && !shown.length && !matches(h.name, h.address)) return "";
+  const hostHit = matches(h.name, h.address);
+  const shown = hostHit ? guests : guests.filter((g) => matches(g.name, g.vmid, g.address));
+  if (query && !shown.length && !hostHit) return "";
   const trend = spark(`${h.id}|cpu`, "spark node-spark");
+  const health = (h.health || []).map((x) =>
+    `<span class="hchip ${esc(x.tone)}" title="${esc(x.detail || "")}"><span class="k">${esc(x.label)}</span>${esc(x.value)}</span>`).join("");
   return `<article class="card node">
     <div class="node-head"><span class="dot ${esc(h.status)}"></span><h3>${esc(h.name)}</h3>
       <span class="sub mono">${esc(sub)}</span></div>
     ${meters.length ? `<div class="meters">${meters.join("")}</div>` : ""}
     ${trend ? `<div class="trend" title="CPU, last hour">${trend}</div>` : ""}
     ${storage ? `<div class="storage">${storage}</div>` : ""}
+    ${health ? `<div class="health">${health}</div>` : ""}
     ${containers.length ? `<div class="muted" style="font-size:12.5px">Docker · ${running} of ${containers.length} containers running</div>` : ""}
     ${guests.length ? `<div class="guests">${(query ? shown : guests).map((g) => guestChip(g, svcByHost[g.id] || 0)).join("")}</div>` : ""}
   </article>`;
@@ -160,21 +169,22 @@ function serviceCard(s) {
     const wide = String(st.value).length > 14;
     return `<div class="stat ${esc(st.tone)} ${wide ? "wide" : ""}">${st.series ? spark(st.series) : ""}<div class="k">${esc(st.label)}</div><div class="v" title="${esc(st.value)}">${esc(st.value)}</div></div>`;
   }).join("");
-  const latency = s.status === "unknown" ? "" : s.status === "up" && s.latency_ms != null ? `${s.latency_ms} ms` : s.status;
+  const latency = s.status === "unknown" ? "" : s.status === "up" && s.latency_ms != null ? `${s.latency_ms} ms`
+    : s.status === "down" && s.down_since ? `down ${since(s.down_since)}` : s.status;
   const foot = [
     s.description && where ? `<span class="tag">${esc(where)}</span>` : "",
     s.version ? `<span class="tag">v${esc(String(s.version).replace(/^v/, ""))}</span>` : "",
     s.container && s.container.toLowerCase() !== s.name.toLowerCase() ? `<span class="tag">${esc(s.container)}</span>` : "",
     s.status === "down" && s.error ? `<span class="note">${esc(s.error)}</span>` : s.note ? `<span class="note">${esc(s.note)}</span>` : "",
   ].join("");
-  const flags = `${pinned.has(s.id) ? " pinned" : ""}${hidden.has(s.id) ? " is-hidden" : ""}`;
-  return `<article class="card svc ${esc(s.status)}${flags}" data-id="${esc(s.id)}">
+  const flags = `${pinned.has(s.key) ? " pinned" : ""}${hidden.has(s.key) ? " is-hidden" : ""}`;
+  return `<article class="card svc ${esc(s.status)}${flags}" data-id="${esc(s.key)}">
     ${s.url ? `<a class="stretch" href="${esc(s.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(s.name)}"></a>` : ""}
     <div class="svc-head">${icon(s.icon, s.name)}
       <div class="svc-title"><b>${esc(s.name)}</b><span class="${s.description ? "" : "mono"}" title="${esc(sub)}">${esc(sub)}</span></div>
       ${s.status === "unknown" ? `<div class="status link">↗</div>` : `<div class="status"><span class="dot ${esc(s.status)}"></span>${esc(latency)}</div>`}</div>
     ${stats ? `<div class="stats">${stats}</div>` : ""}
-    <div class="svc-foot">${foot}<button type="button" class="menu-btn" data-menu="${esc(s.id)}" aria-label="Options for ${esc(s.name)}">⋯</button></div>
+    <div class="svc-foot">${foot}<button type="button" class="menu-btn" data-menu="${esc(s.key)}" aria-label="Options for ${esc(s.name)}">⋯</button></div>
   </article>`;
 }
 
@@ -219,7 +229,7 @@ function render() {
   $("#hosts-block").hidden = !st.hosts.length || !showSection(view, "hosts");
   $("#hosts").innerHTML = st.hosts.map((h) => hostCard(h, svcByHost)).join("");
 
-  const inThisView = st.services.filter((s) => inView(view, s) && (showHidden || !hidden.has(s.id)));
+  const inThisView = st.services.filter((s) => inView(view, s) && (showHidden || !hidden.has(s.key)));
   $("#services-block").hidden = !showSection(view, "services");
   const cats = renderCats(inThisView);
   const visible = inThisView.filter((s) =>
@@ -234,10 +244,10 @@ function render() {
   } else {
     // Pinned first, then each category with down services at the top, so problems are never below the fold.
     const groups = [];
-    const pins = visible.filter((s) => pinned.has(s.id));
+    const pins = visible.filter((s) => pinned.has(s.key));
     if (pins.length && category === "All") groups.push(["Pinned", pins]);
     for (const c of cats) {
-      const items = visible.filter((s) => s.category === c && !(category === "All" && pinned.has(s.id)));
+      const items = visible.filter((s) => s.category === c && !(category === "All" && pinned.has(s.key)));
       if (items.length) groups.push([c, items.sort((a, b) => (b.status === "down") - (a.status === "down"))]);
     }
     $("#services").innerHTML = groups.map(([c, items]) =>
@@ -248,22 +258,25 @@ function render() {
   const bm = (st.bookmarks || []).filter((b) => !groupsWanted || groupsWanted.includes(b.group || "Links"));
   $("#bookmarks-block").hidden = !bm.length || !showSection(view, "links");
   const bmGroups = [...new Set(bm.map((b) => b.group || "Links"))];
-  $("#bookmarks").innerHTML = bmGroups.map((g) => `<div class="bm-group"><h4>${esc(g)}</h4><div class="bm-list">${
-    bm.filter((b) => (b.group || "Links") === g && matches(b.name, b.url, g)).map((b) =>
+  $("#bookmarks").innerHTML = bmGroups.map((g) => {
+    const items = bm.filter((b) => (b.group || "Links") === g && matches(b.name, b.url, g));
+    return items.length ? `<div class="bm-group"><h4>${esc(g)}</h4><div class="bm-list">${items.map((b) =>
       `<a class="bm" href="${esc(b.url)}" target="_blank" rel="noopener"><span class="abbr">${esc(b.abbr || b.name.slice(0, 2))}</span>${esc(b.name)}</a>`).join("")
-  }</div></div>`).join("");
+    }</div></div>` : "";
+  }).join("");
 
   const w = st.weather;
   $("#weather").hidden = !w;
   if (w) $("#weather").textContent = `${w.temp}${w.unit} ${w.text} · H ${w.high}° L ${w.low}°${w.label ? ` · ${w.label}` : ""}`;
   $("#q").placeholder = st.search ? "Filter, or Enter to search the web" : "Filter";
 
-  const nHidden = st.services.filter((s) => hidden.has(s.id)).length;
+  const nHidden = st.services.filter((s) => hidden.has(s.key)).length;
   $("#footer").innerHTML = st.providers.map((p) =>
     `<span class="prov ${p.ok === false ? "err" : ""}" title="${esc(p.error || "")}">
       <span class="dot ${p.ok ? "up" : p.ok === false ? "down" : ""}"></span>${esc(p.name)}${p.detail ? ` · ${esc(p.detail)}` : ""}${p.ok === false ? ` · ${esc(p.error)}` : ""}</span>`
   ).join("") + `<span class="spacer"></span>` +
     (nHidden ? `<button type="button" class="linkish" id="toggle-hidden">${showHidden ? "Hide" : "Show"} ${nHidden} hidden</button>` : "") +
+    (st.user && st.auth?.login && !st.user.startsWith("token:") ? `<button type="button" class="linkish" id="sign-out">Sign out ${esc(st.user)}</button>` : "") +
     `<span>Sett · read-only</span>`;
 
   // Extensions (custom.js) can listen for this and read the state.
@@ -296,9 +309,20 @@ document.addEventListener("click", (e) => {
     return render();
   }
   if (e.target.closest("#toggle-hidden")) { showHidden = !showHidden; return render(); }
+  if (e.target.closest("#sign-out")) {
+    fetch("api/logout", { method: "POST" }).finally(() => location.replace("login"));
+    return;
+  }
   if (!e.target.closest("#card-menu")) menu.hidden = true;
 });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") menu.hidden = true; });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") menu.hidden = true;
+  // "/" jumps to the filter, as on most sites with a search box.
+  if (e.key === "/" && !e.ctrlKey && !e.metaKey && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) {
+    e.preventDefault();
+    $("#q").focus();
+  }
+});
 
 // ---- clock + web search -------------------------------------------------------
 
@@ -383,22 +407,61 @@ $("#tabs").addEventListener("click", (e) => {
 $("#q").addEventListener("input", (e) => { query = e.target.value.trim().toLowerCase(); render(); });
 addEventListener("resize", () => state && renderSummary(state.summary));
 
+// Pins and hides used to be stored by address ("10.0.0.5:8989"); they are now stored
+// by the service's stable key, which survives an IP change. Move old entries over once.
+function migrateIds(services) {
+  for (const [set, k] of [[pinned, "sett.pinned"], [hidden, "sett.hidden"]]) {
+    let moved = false;
+    for (const s of services) {
+      if (s.key !== s.id && set.has(s.id)) { set.delete(s.id); set.add(s.key); moved = true; }
+    }
+    if (moved) store.setList(k, set);
+  }
+}
+
+function accept(next) {
+  const firstLoad = !state;
+  state = next;
+  if (firstLoad) migrateIds(next.services || []);
+  setupThemes(next.themes || []);
+  applyLook(next.ui);
+  if (firstLoad) tick();   // the clock format comes from [ui]
+  const sig = JSON.stringify({ ...next, generated_at: 0 });
+  if (sig !== lastSig) { lastSig = sig; render(); }
+}
+
+// Keep "updated 12s ago" and "down 5m" honest between messages.
+setInterval(() => { if (state) render(); }, 30000);
+
 async function poll() {
   try {
     const r = await fetch("api/state", { cache: "no-store" });
-    const next = await r.json();
-    const firstLoad = !state;
-    state = next;
-    setupThemes(next.themes || []);
-    applyLook(next.ui);
-    if (firstLoad) tick();   // the clock format comes from [ui]
-    const sig = JSON.stringify({ ...next, generated_at: 0 });
-    if (sig !== lastSig) { lastSig = sig; render(); }
-    else $("#subtitle").textContent = $("#subtitle").textContent.replace(/updated .*$/, `updated ${ago(next.generated_at)}`);
+    if (r.status === 401) return location.replace("login");
+    accept(await r.json());
+    $("#subtitle").textContent = $("#subtitle").textContent.replace(/updated .*$/, `updated ${ago(state.generated_at)}`);
   } catch (e) {
     $("#subtitle").textContent = "Lost contact with the dashboard server — retrying";
   }
   setTimeout(poll, POLL_MS);
+}
+
+// Live updates over server-sent events; plain polling if the stream will not stay up
+// (an old proxy that buffers it, say).
+function live() {
+  if (!window.EventSource) return poll();
+  let failures = 0, heard = false;
+  const es = new EventSource("api/events");
+  const fallBack = () => { es.close(); poll(); };
+  // The server sends the state as soon as a stream opens. Nothing within 15s means
+  // something in between is holding the stream back.
+  const watchdog = setTimeout(() => { if (!heard) fallBack(); }, 15000);
+  es.onopen = () => { failures = 0; };
+  es.onmessage = (e) => { heard = true; try { accept(JSON.parse(e.data)); } catch {} };
+  es.addEventListener("signed-out", () => { es.close(); location.replace("login"); });
+  es.onerror = () => {
+    if (++failures >= 3) { clearTimeout(watchdog); fallBack(); return; }
+    $("#subtitle").textContent = "Lost contact with the dashboard server — retrying";
+  };
 }
 
 async function pollHistory() {
@@ -409,5 +472,9 @@ async function pollHistory() {
   } catch {}
   setTimeout(pollHistory, HISTORY_MS);
 }
-poll();
+// One fetch for a fast first paint, then the live stream.
+fetch("api/state", { cache: "no-store" })
+  .then((r) => (r.status === 401 ? location.replace("login") : r.json().then(accept)))
+  .catch(() => {})
+  .finally(live);
 pollHistory();

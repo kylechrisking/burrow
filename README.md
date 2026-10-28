@@ -105,16 +105,23 @@ Separately, every card has a ⋯ menu to pin it to the top or hide it. That's
 saved per browser, so everyone in the house can set things up their own way.
 
 Numeric stats keep an hour of history and draw a small sparkline behind
-themselves. Icons are served and cached by Sett itself, so the page still
-looks right when the internet is down.
+themselves; mount `/data` and that history survives restarts and updates.
+Icons are served and cached by Sett itself, so the page still looks right
+when the internet is down. The page updates live as checks finish, and a card
+that's down says for how long.
+
+With a Proxmox token, node cards also show ZFS pool health, SMART results, SSD
+wear and whether the last backup worked.
 
 ## Security
 
 Sett only reads. It sends GET requests to Proxmox and Docker. It logs in to
 qBittorrent or Pi-hole only if you've given it credentials for stats. Secrets
-stay on the server and are never sent to the browser. It has no login screen,
-so run it on your LAN or behind your reverse proxy, the way most people run
-Homepage.
+stay on the server and are never sent to the browser. Sign-in is optional:
+per-user passwords with optional two-factor codes, your SSO proxy's header, or
+API tokens for scripts ([docs/install.md](docs/install.md#6-sign-in-and-two-factor-codes)).
+Without it, run Sett on your LAN or behind your reverse proxy, the way most
+people run Homepage.
 
 ## Hacking on it
 
