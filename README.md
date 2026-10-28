@@ -111,7 +111,9 @@ when the internet is down. The page updates live as checks finish, and a card
 that's down says for how long.
 
 With a Proxmox token, node cards also show ZFS pool health, SMART results, SSD
-wear and whether the last backup worked.
+wear, whether the last backup worked, pending updates, and a web certificate
+that's about to expire. Containers with a Docker `HEALTHCHECK` that's failing
+are flagged on their card and their host.
 
 ## Security
 

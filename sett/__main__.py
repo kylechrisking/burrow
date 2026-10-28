@@ -2,7 +2,7 @@
 python -m sett identify URL...  show what Sett sees at an address (for writing fingerprints)
 python -m sett prefetch-icons [DIR]   download every catalog icon (used when building the image)
 python -m sett import-homepage DIR    turn a Homepage config folder into sett.toml
-python -m sett add-user NAME [--totp]  make a sign-in for [auth] (password, optional 2FA code)"""
+python -m sett add-user NAME [--totp]  make a sign-in for [auth] (password, optional 2FA code + QR)"""
 from __future__ import annotations
 
 import logging

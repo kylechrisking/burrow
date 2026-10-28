@@ -11,6 +11,7 @@ class Container:
     image: str
     state: str          # running / exited / ...
     status: str = ""    # "Up 3 hours (healthy)"
+    health: str = ""    # healthy | unhealthy | starting, when the image has a HEALTHCHECK
 
 
 @dataclass

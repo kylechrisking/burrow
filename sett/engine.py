@@ -436,6 +436,7 @@ class Engine:
         with self.lock:
             services = list(self.services.values())
 
+        by_container = {(h.id, c.name): c for h in hosts.values() for c in h.containers}
         dupes = Counter(s.name for s in services)
         same_host = defaultdict(set)
         for s in services:
@@ -447,6 +448,8 @@ class Engine:
                 d.pop(k, None)
             h = hosts.get(s.host_id)
             d["host"] = h.name if h else None
+            c = by_container.get((s.host_id, s.container)) if s.container else None
+            d["health"] = c.health if c else ""
             if dupes[s.name] > 1 and not s.manual:
                 d["name"] = f"{s.name} · {d['host']}" if len(same_host[s.name]) > 1 and d["host"] else f"{s.name} :{s.port}"
             if not s.manual and f"{s.address}:{s.port}" in self.cfg.links:

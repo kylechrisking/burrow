@@ -182,9 +182,12 @@ docker exec -it sett python -m sett add-user kyle --totp
 ```
 
 It asks for a password and prints an `[auth.users.kyle]` block to paste into
-the secrets file (or `sett.toml`). With `--totp` it also prints a key and an
-`otpauth://` link for your authenticator app (Aegis, 2FAS, Google
-Authenticator, 1Password...), and sign-in then asks for the 6-digit code too.
+the secrets file (or `sett.toml`). With `--totp` it also draws a QR code in the
+terminal for your authenticator app (Aegis, 2FAS, Google Authenticator,
+1Password...), plus the key and `otpauth://` link if you'd rather type or paste
+it, and sign-in then asks for the 6-digit code too. If your terminal mangles
+the QR code, add `--svg /config/kyle-qr.svg` to save it as an image (delete it
+once scanned).
 Run it again for each person who needs an account. Changing someone's password
 or key signs them out everywhere.
 

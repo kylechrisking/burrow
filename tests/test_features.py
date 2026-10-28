@@ -158,6 +158,75 @@ class ProxmoxGuests(unittest.TestCase):
         self.assertEqual(P.backup_health({"starttime": now}, 0, now)["value"], "running")
 
 
+class MoreHealth(unittest.TestCase):
+    def test_docker_health_from_status(self):
+        self.assertEqual(D._health("Up 3 hours (unhealthy)"), "unhealthy")
+        self.assertEqual(D._health("Up 5 seconds (health: starting)"), "starting")
+        self.assertEqual(D._health("Up 2 days"), "")
+
+    def test_unhealthy_container_reaches_its_card(self):
+        from sett.model import Container, Host, Inventory
+        e = Engine(Config())
+        e.inventories = {"docker:x": Inventory(hosts=[Host("docker:box", "box", "docker", "running", "10.0.0.9",
+                                                            containers=[Container("web", "nginx", "running",
+                                                                                  "Up 1h (unhealthy)", "unhealthy")])])}
+        e.services = {"10.0.0.9:80": Service("10.0.0.9:80", "container", "web", "Containers", "nginx", "docker:box",
+                                             "10.0.0.9", 80, container="web", status="up")}
+        [svc] = e.state()["services"]
+        self.assertEqual(svc["health"], "unhealthy")
+
+    def test_certificate_expiry(self):
+        now = 1_000_000
+        self.assertEqual(P.cert_health(now + 400 * 86400, now)["tone"], "ok")
+        self.assertEqual(P.cert_health(now + 20 * 86400, now)["value"], "20d left")
+        self.assertEqual(P.cert_health(now + 20 * 86400, now)["tone"], "warn")
+        self.assertEqual(P.cert_health(now - 1, now)["tone"], "bad")
+
+    def test_updates_and_expiring_cert_on_node(self):
+        soon = time.time() + 3 * 86400
+        p = ProxmoxGuests().provider({
+            "/nodes/a/certificates/info": [{"filename": "pve-ssl.pem", "notafter": time.time() + 900 * 86400},
+                                           {"filename": "pveproxy-ssl.pem", "notafter": soon}],
+            "/nodes/a/apt/update": [{"Package": "pve-manager"}, {"Package": "openssl"}],
+        })
+        h = {x["label"]: x for x in p.node_health("a")}
+        self.assertEqual(h["Certificate"]["tone"], "bad")
+        self.assertEqual((h["Updates"]["value"], h["Updates"]["detail"]), ("2", "openssl, pve-manager"))
+
+
+class Qr(unittest.TestCase):
+    def test_reed_solomon_known_answer(self):
+        from sett.qr import _rs_divisor, _rs_remainder
+        data = [32, 91, 11, 120, 209, 114, 220, 77, 67, 64, 236, 17, 236, 17, 236, 17]   # "HELLO WORLD", 1-M
+        self.assertEqual(_rs_remainder(data, _rs_divisor(10)), [196, 35, 39, 119, 235, 215, 231, 226, 93, 23])
+
+    def test_shape_finders_and_format(self):
+        from sett import qr
+        uri = A.otpauth_uri("kyle", A.new_totp_secret())
+        m = qr.encode(uri)
+        size = len(m)
+        self.assertEqual((size - 17) % 4, 0)
+        finder = [[max(abs(x - 3), abs(y - 3)) != 2 for x in range(7)] for y in range(7)]
+        for ox, oy in ((0, 0), (size - 7, 0), (0, size - 7)):
+            self.assertEqual([row[ox:ox + 7] for row in m[oy:oy + 7]], finder)
+        # both copies of the 15 format bits agree and are a valid BCH codeword
+        first = [m[i][8] for i in range(6)] + [m[7][8], m[8][8], m[8][7]] + [m[8][14 - i] for i in range(9, 15)]
+        second = [m[8][size - 1 - i] for i in range(8)] + [m[size - 15 + i][8] for i in range(8, 15)]
+        self.assertEqual(first, second)
+        bits = sum(b << i for i, b in enumerate(first)) ^ 0x5412
+        rem = bits
+        for i in range(14, 9, -1):
+            if rem >> i & 1:
+                rem ^= 0x537 << (i - 10)
+        self.assertEqual(rem, 0)
+        self.assertEqual(bits >> 13, 0)   # error correction level M
+
+    def test_too_long(self):
+        from sett import qr
+        with self.assertRaises(ValueError):
+            qr.encode("x" * 300)
+
+
 class Passwords(unittest.TestCase):
     def test_hash_and_check(self):
         h = A.hash_password("correct horse", rounds=1000)

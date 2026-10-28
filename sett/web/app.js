@@ -19,6 +19,7 @@ const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 let state = null;
 let trends = {};          // series -> last hour of values, from /api/history
 let lastSig = "";
+let lost = false;         // the subtitle is showing "Lost contact"
 let category = store.get("sett.cat") || "All";
 let query = "";
 let viewId = new URLSearchParams(location.search).get("view") || store.get("sett.view") || "";
@@ -144,6 +145,7 @@ function hostCard(h, svcByHost) {
   const storage = (h.storage || []).map((st) => meter(st.name, st.used, st.total)).join("");
   const containers = h.containers || [];
   const running = containers.filter((c) => c.state === "running").length;
+  const sick = containers.filter((c) => c.health === "unhealthy").map((c) => c.name);
   const hostHit = matches(h.name, h.address);
   const shown = hostHit ? guests : guests.filter((g) => matches(g.name, g.vmid, g.address));
   if (query && !shown.length && !hostHit) return "";
@@ -157,7 +159,8 @@ function hostCard(h, svcByHost) {
     ${trend ? `<div class="trend" title="CPU, last hour">${trend}</div>` : ""}
     ${storage ? `<div class="storage">${storage}</div>` : ""}
     ${health ? `<div class="health">${health}</div>` : ""}
-    ${containers.length ? `<div class="muted" style="font-size:12.5px">Docker · ${running} of ${containers.length} containers running</div>` : ""}
+    ${containers.length ? `<div class="muted" style="font-size:12.5px">Docker · ${running} of ${containers.length} containers running${
+      sick.length ? ` · <span class="warn-text" title="${esc(sick.join(", "))}">${sick.length} unhealthy</span>` : ""}</div>` : ""}
     ${guests.length ? `<div class="guests">${(query ? shown : guests).map((g) => guestChip(g, svcByHost[g.id] || 0)).join("")}</div>` : ""}
   </article>`;
 }
@@ -175,9 +178,10 @@ function serviceCard(s) {
     s.description && where ? `<span class="tag">${esc(where)}</span>` : "",
     s.version ? `<span class="tag">v${esc(String(s.version).replace(/^v/, ""))}</span>` : "",
     s.container && s.container.toLowerCase() !== s.name.toLowerCase() ? `<span class="tag">${esc(s.container)}</span>` : "",
+    s.health === "unhealthy" || s.health === "starting" ? `<span class="tag ${s.health === "unhealthy" ? "warn" : ""}" title="Docker health check">${esc(s.health)}</span>` : "",
     s.status === "down" && s.error ? `<span class="note">${esc(s.error)}</span>` : s.note ? `<span class="note">${esc(s.note)}</span>` : "",
   ].join("");
-  const flags = `${pinned.has(s.key) ? " pinned" : ""}${hidden.has(s.key) ? " is-hidden" : ""}`;
+  const flags = `${pinned.has(s.key) ? " pinned" : ""}${hidden.has(s.key) ? " is-hidden" : ""}${s.health === "unhealthy" && s.status === "up" ? " unhealthy" : ""}`;
   return `<article class="card svc ${esc(s.status)}${flags}" data-id="${esc(s.key)}">
     ${s.url ? `<a class="stretch" href="${esc(s.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(s.name)}"></a>` : ""}
     <div class="svc-head">${icon(s.icon, s.name)}
@@ -207,7 +211,7 @@ function render() {
   document.title = view.id !== "all" && views().length ? `${view.name} · ${st.title}` : st.title;
   $("#title").textContent = st.title;
   const down = st.services.filter((s) => s.status === "down").length;
-  $("#subtitle").textContent = st.identified_at
+  $("#subtitle").textContent = lost ? "Lost contact with the dashboard server — retrying" : st.identified_at
     ? `${st.summary.services} services discovered${down ? ` · ${down} down` : ""} · updated ${ago(st.generated_at)}`
     : "Discovering your lab…";
   $("#config-error").hidden = !st.config_error;
@@ -427,7 +431,12 @@ function accept(next) {
   applyLook(next.ui);
   if (firstLoad) tick();   // the clock format comes from [ui]
   const sig = JSON.stringify({ ...next, generated_at: 0 });
-  if (sig !== lastSig) { lastSig = sig; render(); }
+  if (sig !== lastSig || lost) { lastSig = sig; lost = false; render(); }   // also clears "Lost contact"
+}
+
+function lostContact() {
+  lost = true;
+  $("#subtitle").textContent = "Lost contact with the dashboard server — retrying";
 }
 
 // Keep "updated 12s ago" and "down 5m" honest between messages.
@@ -440,7 +449,7 @@ async function poll() {
     accept(await r.json());
     $("#subtitle").textContent = $("#subtitle").textContent.replace(/updated .*$/, `updated ${ago(state.generated_at)}`);
   } catch (e) {
-    $("#subtitle").textContent = "Lost contact with the dashboard server — retrying";
+    lostContact();
   }
   setTimeout(poll, POLL_MS);
 }
@@ -460,7 +469,7 @@ function live() {
   es.addEventListener("signed-out", () => { es.close(); location.replace("login"); });
   es.onerror = () => {
     if (++failures >= 3) { clearTimeout(watchdog); fallBack(); return; }
-    $("#subtitle").textContent = "Lost contact with the dashboard server — retrying";
+    lostContact();
   };
 }
 

@@ -280,9 +280,9 @@ def _ip_in(ip: str, nets: list[str]) -> bool:
 
 def add_user_cli(args: list[str]) -> int:
     import getpass
-    names = [a for a in args if not a.startswith("--")]
+    names = [a for i, a in enumerate(args) if not a.startswith("--") and (i == 0 or args[i - 1] != "--svg")]
     if not names:
-        print("usage: python -m sett add-user NAME [--totp]")
+        print("usage: python -m sett add-user NAME [--totp [--svg FILE]]")
         return 2
     name = names[0]
     pw = getpass.getpass(f"Password for {name}: ")
@@ -296,9 +296,18 @@ def add_user_cli(args: list[str]) -> int:
     if "--totp" in args:
         secret = new_totp_secret()
         lines.append(f'totp_secret = "{secret}"')
-        print("\nAdd this account to your authenticator app (enter the key by hand, or paste the URI):")
+        from . import qr
+        uri = otpauth_uri(name, secret)
+        print("\nScan this with your authenticator app:\n")
+        print(qr.terminal(qr.encode(uri)))
+        print("\nOr enter the key by hand, or paste the link:")
         print(f"  key: {secret}")
-        print(f"  uri: {otpauth_uri(name, secret)}")
+        print(f"  uri: {uri}")
+        svg_at = next((args[i + 1] for i, a in enumerate(args) if a == "--svg" and i + 1 < len(args)), None)
+        if svg_at:
+            Path(svg_at).write_text(qr.svg(qr.encode(uri)), encoding="utf-8")
+            os.chmod(svg_at, 0o600)
+            print(f"  QR code also saved to {svg_at} (it holds the secret: delete it once scanned)")
     print("\nPut this in the secrets file (or sett.toml):\n")
     print("\n".join(lines))
     return 0

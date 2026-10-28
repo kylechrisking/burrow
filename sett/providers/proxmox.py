@@ -204,6 +204,24 @@ class ProxmoxProvider(Provider):
                 out.append(backup_health(max(tasks, key=lambda t: t.get("starttime", 0)), self.backup_max_age))
         except (RuntimeError, OSError, ValueError) as e:
             log.debug("proxmox: %s backups: %s", node, e)
+        try:
+            certs = {c.get("filename"): c for c in self._get(f"{base}/certificates/info") or []}
+            # pveproxy-ssl.pem is a custom or ACME certificate and, when present, the one in use.
+            cert = certs.get("pveproxy-ssl.pem") or certs.get("pve-ssl.pem")
+            if cert and cert.get("notafter"):
+                c = cert_health(float(cert["notafter"]))
+                if c["tone"] != "ok":   # a chip only when it needs attention
+                    out.append(c)
+        except (RuntimeError, OSError, ValueError, TypeError) as e:
+            log.debug("proxmox: %s certificates: %s", node, e)
+        try:
+            pending = self._get(f"{base}/apt/update") or []
+            if pending:
+                names = sorted(p.get("Package", "?") for p in pending)
+                out.append({"label": "Updates", "value": str(len(pending)), "tone": "",
+                            "detail": ", ".join(names[:12]) + (" ..." if len(names) > 12 else "")})
+        except (RuntimeError, OSError, ValueError, TypeError) as e:
+            log.debug("proxmox: %s updates: %s", node, e)
         return out
 
     def describe(self) -> str:
@@ -232,6 +250,16 @@ def backup_health(task: dict, max_age: float = 0, now: float | None = None) -> d
     if str(status).upper().startswith("WARNINGS"):
         return {"label": "Backup", "value": when, "tone": "warn", "detail": str(status)}
     return {"label": "Backup", "value": "failed", "tone": "bad", "detail": f"{status} ({when})"}
+
+
+def cert_health(not_after: float, now: float | None = None) -> dict:
+    """The web UI certificate's remaining life: warn under 30 days, bad under 7."""
+    left = not_after - (now or time.time())
+    days = int(left // 86400)
+    if left <= 0:
+        return {"label": "Certificate", "value": "expired", "tone": "bad", "detail": "the web UI certificate has expired"}
+    tone = "bad" if days < 7 else "warn" if days < 30 else "ok"
+    return {"label": "Certificate", "value": f"{days}d left", "tone": tone, "detail": "web UI certificate"}
 
 
 def _ago(seconds: float) -> str:
