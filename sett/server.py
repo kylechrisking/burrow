@@ -120,8 +120,12 @@ def make_handler(engine: Engine, auth: Auth | None = None):
             user = auth.identify(self.headers, self.client_address[0])
             if user or path in PUBLIC or path.startswith("/themes/"):
                 return True, user
-            if path in ("/", "/index.html"):
+            if path in ("/", "/index.html") and auth.login_enabled:
                 self._send(302, b"", "text/plain", headers={"Location": "login"})
+            elif path in ("/", "/index.html"):
+                # No passwords to sign in with: only the SSO proxy (or a token) gets in.
+                self._send(401, b"Sign in through your single sign-on proxy to see this dashboard.\n",
+                           "text/plain; charset=utf-8")
             else:
                 self._json({"error": "sign in required"}, 401)
             return False, None

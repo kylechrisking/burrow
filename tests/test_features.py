@@ -360,6 +360,22 @@ class Http(unittest.TestCase):
         self.assertIn("services", json.loads(line[6:]))
 
 
+class ProxyOnly(unittest.TestCase):
+    def test_no_redirect_loop_without_password_users(self):
+        engine, _ = auth_engine(proxy_header="Remote-User", trusted_proxies=["10.9.9.9/32"])
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(engine))
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            base = f"http://127.0.0.1:{httpd.server_address[1]}"
+            opener = urllib.request.build_opener(_NoRedirect)
+            for path in ("/", "/login"):
+                with self.assertRaises(urllib.error.HTTPError) as cm:
+                    opener.open(base + path, timeout=5)
+                self.assertEqual(cm.exception.code, 401 if path == "/" else 302)
+        finally:
+            httpd.shutdown()
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *a, **k):
         return None
