@@ -387,7 +387,7 @@ class Engine:
                 self._check_app(s)
             s.error = None if s.status != "down" else (s.error or "no response")
         except Exception as e:
-            s.status, s.error = "down", str(e)[:160]
+            s.status, s.error = "down", _reason(e)
         s.checked_at = time.time()
         if s.status == "down":
             s.down_since = s.down_since or s.checked_at
@@ -599,6 +599,13 @@ def _card_stats(fields: list, data: dict) -> list[Stat]:
             st.tone = apply_rules(st, f[2])
         out.append(st)
     return out
+
+
+def _reason(e: Exception) -> str:
+    """Words for a failed check: "Connection refused", not "<urlopen error [Errno 111] ...>"."""
+    r = getattr(e, "reason", None) or e
+    text = getattr(r, "strerror", None) or str(r)
+    return (text if isinstance(text, str) else str(r))[:160] or type(e).__name__
 
 
 def _key(app: str, host_id: str | None, part: str, fallback: str) -> str:

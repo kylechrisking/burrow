@@ -80,6 +80,7 @@ class StableKeys(unittest.TestCase):
         self.assertIsNotNone(first)
         e._check(s)
         self.assertEqual(s.down_since, first)
+        self.assertEqual(s.error, "Connection refused")
 
 
 class DockerPorts(unittest.TestCase):

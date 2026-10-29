@@ -115,6 +115,15 @@ wear, whether the last backup worked, pending updates, and a web certificate
 that's about to expire. Containers with a Docker `HEALTHCHECK` that's failing
 are flagged on their card and their host.
 
+## Companion: Brock
+
+Sett shows you what's down when you look. [Brock](https://github.com/kylechrisking/brock)
+tells you when you're not looking: a small separate container that sends
+alerts to ntfy, Gotify, Discord, Slack or email, with quiet hours,
+maintenance windows and a status page with uptime history. Give it a Sett
+API token and it watches everything Sett discovered, plus Proxmox health,
+without a list of its own. Neither needs the other.
+
 ## Security
 
 Sett only reads. It sends GET requests to Proxmox and Docker. It logs in to
