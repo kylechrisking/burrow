@@ -36,11 +36,19 @@ def list_themes() -> list[dict]:
     return out
 
 
+def can_edit(engine: Engine, auth: Auth, user: str | None) -> bool:
+    """Card edits: signed in when sign-in is on; otherwise allowed unless [ui] edit = false."""
+    if engine.cfg.ui.get("edit") is False:
+        return False
+    return bool(user) if auth.enabled else True
+
+
 def full_state(engine: Engine, user: str | None, auth: Auth) -> dict:
     state = engine.state()
     state["themes"] = list_themes()
     state["user"] = user
     state["auth"] = {"login": auth.login_enabled}
+    state["can_edit"] = can_edit(engine, auth, user) and engine.edits_file is not None
     return state
 
 
@@ -137,6 +145,22 @@ def make_handler(engine: Engine, auth: Auth | None = None):
 
         def do_POST(self):
             path = self.path.split("?")[0]
+            if path == "/api/edit":
+                user = auth.identify(self.headers, self.client_address[0]) if auth.enabled else None
+                if not can_edit(engine, auth, user):
+                    if auth.enabled and not user and engine.cfg.ui.get("edit") is not False:
+                        return self._json({"error": "sign in to edit cards"}, 401)
+                    return self._json({"error": "editing cards isn't allowed here"}, 403)
+                origin = self.headers.get("Origin")
+                if (self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json"
+                        or (origin and urlparse(origin).netloc != self.headers.get("Host", ""))):
+                    return self._json({"error": "send JSON from the dashboard"}, 403)
+                d = self._body()
+                try:
+                    engine.set_edit(str(d.get("key", ""))[:200], d.get("fields"))
+                except (ValueError, OSError) as e:
+                    return self._json({"error": str(e)}, 422)
+                return self._json({"ok": True})
             if path == "/api/login":
                 if not auth.login_enabled:
                     return self._json({"ok": False, "error": "sign-in is not configured"}, 404)

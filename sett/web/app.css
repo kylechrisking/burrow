@@ -316,3 +316,19 @@ a.tag.uptime:hover { border-color: var(--text-muted); }
   border: 1px solid var(--border-strong); color: var(--text-muted); text-decoration: none; }
 .site-pill:hover { color: var(--text); }
 .site-pill.down { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 55%, transparent); }
+
+/* ---- card editor ---- */
+.editor { border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); color: var(--text);
+  padding: 20px; width: min(440px, calc(100vw - 32px)); }
+.editor::backdrop { background: #0008; }
+.editor h3 { margin: 0; font-size: 17px; }
+.editor form { display: grid; gap: 12px; }
+.editor label { display: grid; gap: 5px; font-size: 12.5px; color: var(--text-muted); }
+.editor input { font: inherit; font-size: 14.5px; color: var(--text); background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); padding: 8px 10px; }
+.editor-actions { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.editor-actions .spacer { flex: 1; }
+.editor-actions button:not(.linkish) { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: var(--radius-sm); cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); }
+.editor-actions button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+.editor-msg { margin: 0; color: var(--bad); font-size: 13px; }

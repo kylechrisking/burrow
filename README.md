@@ -107,6 +107,11 @@ What you can change:
 
 Separately, every card has a ⋯ menu to pin it to the top or hide it. That's
 saved per browser, so everyone in the house can set things up their own way.
+The same menu has **Edit card…** to change a card's name, description,
+category, link or icon for everyone. Those edits are kept in the data folder
+on top of `sett.toml`, and "Put back as discovered" undoes them. With sign-in
+on, only signed-in people can edit; without it, turn editing off with
+`[ui] edit = false` if the dashboard is shared.
 
 Numeric stats keep an hour of history and draw a small sparkline behind
 themselves; mount `/data` and that history survives restarts and updates.

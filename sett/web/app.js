@@ -324,7 +324,8 @@ function openMenu(btn) {
   const id = btn.dataset.menu;
   menu.dataset.id = id;
   menu.innerHTML = `<button type="button" data-act="pin">${pinned.has(id) ? "Unpin" : "Pin to top"}</button>
-    <button type="button" data-act="hide">${hidden.has(id) ? "Unhide" : "Hide"}</button>`;
+    <button type="button" data-act="hide">${hidden.has(id) ? "Unhide" : "Hide"}</button>
+    ${state?.can_edit ? `<button type="button" data-act="edit">Edit card…</button>` : ""}`;
   const r = btn.getBoundingClientRect();
   menu.hidden = false;
   menu.style.top = `${scrollY + r.bottom + 6}px`;
@@ -335,6 +336,7 @@ document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-menu]");
   if (btn) { e.preventDefault(); return menu.hidden || menu.dataset.id !== btn.dataset.menu ? openMenu(btn) : (menu.hidden = true); }
   const act = e.target.closest("#card-menu [data-act]");
+  if (act && act.dataset.act === "edit") { menu.hidden = true; return openEditor(menu.dataset.id); }
   if (act) {
     const id = menu.dataset.id, set = act.dataset.act === "pin" ? pinned : hidden;
     set.has(id) ? set.delete(id) : set.add(id);
@@ -357,6 +359,43 @@ document.addEventListener("keydown", (e) => {
     $("#q").focus();
   }
 });
+
+// ---- editing a card (saved on the server, for everyone) -------------------------------
+
+const editor = $("#editor");
+let editing = null;
+function openEditor(key) {
+  const s = state.services.find((x) => x.key === key);
+  if (!s) return;
+  editing = s;
+  const f = $("#edit-form");
+  for (const k of ["name", "description", "category", "url", "icon"]) f.elements[k].value = s[k] || "";
+  $("#editor-sub").textContent = [s.app !== "manual" && s.app !== "card" ? s.app : "", s.host, s.port ? `:${s.port}` : ""].filter(Boolean).join(" ");
+  $("#editor-cats").innerHTML = [...new Set(state.services.map((x) => x.category))].sort().map((c) => `<option value="${esc(c)}">`).join("");
+  $("#edit-reset").hidden = !s.edited;
+  $("#editor-msg").hidden = true;
+  editor.showModal();
+}
+async function saveEdit(fields) {
+  const r = await fetch("api/edit", { method: "POST", headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ key: editing.key, fields }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { $("#editor-msg").textContent = d.error || `Couldn't save (${r.status}).`; $("#editor-msg").hidden = false; return; }
+  editor.close();
+  fetch("api/state", { cache: "no-store" }).then((x) => x.json()).then(accept).catch(() => {});
+}
+$("#edit-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = e.target, fields = {};
+  // Only what differs from what the card would show anyway is stored.
+  for (const k of ["name", "description", "category", "url", "icon"]) {
+    const v = f.elements[k].value.trim();
+    if (v !== (editing[k] || "") || (editing.edited && v)) fields[k] = v;
+  }
+  saveEdit(fields);
+});
+$("#edit-reset").addEventListener("click", () => saveEdit(null));
+$("#edit-cancel").addEventListener("click", () => editor.close());
 
 // ---- clock + web search -------------------------------------------------------
 

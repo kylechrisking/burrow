@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import copy
+import os
+import json
 import logging
 import threading
 import time
@@ -54,6 +56,8 @@ class Engine:
         self.vitals: Vitals | None = None
         self.data = data_dir()
         self.history_file = self.data / "history.json" if self.data else None
+        self.edits_file = self.data / "edits.json" if self.data else None
+        self.edits: dict[str, dict] = self._load_edits()
         if self.history_file:
             n = self.history.load(self.history_file)
             if n:
@@ -61,6 +65,39 @@ class Engine:
         # Bumped whenever something the page shows may have changed; /api/events waits on it.
         self.version = 0
         self.updated = threading.Condition()
+
+    # ---- card edits made on the page ---------------------------------------------------------
+
+    EDIT_FIELDS = ("name", "description", "category", "url", "icon")
+
+    def _load_edits(self) -> dict[str, dict]:
+        if not self.edits_file or not self.edits_file.is_file():
+            return {}
+        try:
+            doc = json.loads(self.edits_file.read_text(encoding="utf-8"))
+            return {k: v for k, v in doc.items() if isinstance(v, dict)} if isinstance(doc, dict) else {}
+        except (OSError, ValueError) as e:
+            log.warning("edits: could not read %s: %s", self.edits_file, e)
+            return {}
+
+    def set_edit(self, key: str, fields: dict | None) -> None:
+        """Change one card (by its stable key), or put it back as discovered (fields None/empty).
+        Saved in the data folder, layered over the config's overrides."""
+        if not self.edits_file:
+            raise OSError("no writable data folder: mount /data to keep card edits")
+        clean = {k: str(v).strip()[:300] for k, v in (fields or {}).items() if k in self.EDIT_FIELDS and str(v).strip()}
+        url = clean.get("url", "")
+        if url and not url.startswith(("http://", "https://", "/")):
+            raise ValueError("links start with http:// or https://")
+        with self.lock:
+            if clean:
+                self.edits[key] = clean
+            else:
+                self.edits.pop(key, None)
+            tmp = self.edits_file.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self.edits, indent=1), encoding="utf-8")
+            os.replace(tmp, self.edits_file)
+        self.notify()
 
     def notify(self) -> None:
         with self.updated:
@@ -480,6 +517,9 @@ class Engine:
             if o.get("hide"):
                 continue
             d.update({k: o[k] for k in ("name", "description", "url", "category", "icon") if k in o})
+            e = self.edits.get(s.key) or {}
+            d.update(e)
+            d["edited"] = bool(e)
             d["stats"] = _shape_stats(s, o)
             row = self.vitals.find(s.key, d["name"], s.name) if self.vitals else None
             d["uptime"] = badge(row, self.cfg.vitals, o, self.vitals.url + "/") if row else None
@@ -545,6 +585,7 @@ class Engine:
         with self.lock:
             names = {s.icon for s in self.services.values()}
         names |= {o.get("icon") for o in self.cfg.overrides.values() if isinstance(o, dict)}
+        names |= {e.get("icon") for e in self.edits.values()}
         names |= {d.get("icon") for d in self.cfg.services + self.cfg.cards + self.cfg.bookmarks}
         return {n for n in names if isinstance(n, str) and n.startswith(("http://", "https://"))}
 

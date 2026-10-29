@@ -385,6 +385,58 @@ class VitalsUptime(unittest.TestCase):
         self.assertIn("[vitals] token", b.error)
 
 
+class CardEdits(unittest.TestCase):
+    def setUp(self):
+        f = Path(TMP) / "edits.json"
+        if f.exists():
+            f.unlink()
+
+    tearDown = setUp
+
+    def engine(self, **cfg):
+        e = Engine(Config(**cfg))
+        e.services = {"a": Service("10.0.0.5:8989", "sonarr", "Sonarr", "Media", "sonarr", "pve:lxc/105", "10.0.0.5", 8989,
+                                   key="sonarr@pve:lxc/105", url="http://10.0.0.5:8989")}
+        return e
+
+    def test_edit_and_put_back(self):
+        e = self.engine()
+        e.set_edit("sonarr@pve:lxc/105", {"name": "TV", "category": "Downloads", "bogus": "x"})
+        [d] = e.state()["services"]
+        self.assertEqual((d["name"], d["category"], d["edited"]), ("TV", "Downloads", True))
+        self.assertEqual(self.engine().edits, {"sonarr@pve:lxc/105": {"name": "TV", "category": "Downloads"}})  # kept
+        e.set_edit("sonarr@pve:lxc/105", None)
+        [d] = e.state()["services"]
+        self.assertEqual((d["name"], d["edited"]), ("Sonarr", False))
+        with self.assertRaises(ValueError):
+            e.set_edit("sonarr@pve:lxc/105", {"url": "javascript:alert(1)"})
+
+    def http(self, engine, body, headers=None):
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(engine))
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            r = urllib.request.Request(f"http://127.0.0.1:{httpd.server_address[1]}/api/edit", method="POST",
+                                       data=json.dumps(body).encode(),
+                                       headers={"Content-Type": "application/json", **(headers or {})})
+            try:
+                with urllib.request.urlopen(r, timeout=5) as resp:
+                    return resp.status
+            except urllib.error.HTTPError as err:
+                return err.code
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+    def test_who_may_edit(self):
+        body = {"key": "sonarr@pve:lxc/105", "fields": {"name": "TV"}}
+        self.assertEqual(self.http(self.engine(), body), 200)                                  # no sign-in configured
+        self.assertEqual(self.http(self.engine(ui={"edit": False}), body), 403)               # turned off
+        self.assertEqual(self.http(self.engine(), body, {"Origin": "http://evil.example"}), 403)
+        signed = self.engine(auth={"api_tokens": {"me": "tok"}})
+        self.assertEqual(self.http(signed, body), 401)                                        # sign-in on, not signed in
+        self.assertEqual(self.http(signed, body, {"Authorization": "Bearer tok"}), 200)
+
+
 class Passwords(unittest.TestCase):
     def test_hash_and_check(self):
         h = A.hash_password("correct horse", rounds=1000)

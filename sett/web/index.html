@@ -80,6 +80,25 @@
     <footer id="footer" class="footer"></footer>
   </div>
   <div id="card-menu" class="card-menu" role="menu" hidden></div>
+  <dialog id="editor" class="editor" aria-labelledby="editor-title">
+    <form id="edit-form" method="dialog">
+      <h3 id="editor-title">Edit card</h3>
+      <p class="muted" id="editor-sub"></p>
+      <label>Name<input name="name" autocomplete="off"></label>
+      <label>Description<input name="description" autocomplete="off" placeholder="shown under the name"></label>
+      <label>Category<input name="category" list="editor-cats" autocomplete="off"></label>
+      <datalist id="editor-cats"></datalist>
+      <label>Link<input name="url" autocomplete="off" placeholder="https://..."></label>
+      <label>Icon<input name="icon" autocomplete="off" placeholder="sonarr, mdi-harddisk, or https://..."></label>
+      <p class="editor-msg" id="editor-msg" hidden></p>
+      <div class="editor-actions">
+        <button type="button" class="linkish" id="edit-reset">Put back as discovered</button>
+        <span class="spacer"></span>
+        <button type="button" id="edit-cancel">Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
   <script src="app.js"></script>
   <script src="custom.js"></script>
 </body>
