@@ -127,12 +127,12 @@ function renderSummary(s) {
   }).join("");
 }
 
-// What Brock's agent on a host reports (disk, RAM, updates...), and any problem it has.
+// What Vitals' agent on a host reports (disk, RAM, updates...), and any problem it has.
 function agentLine(ag) {
   if (!ag) return "";
   const quiet = ag.status === "down";
   const tone = quiet ? "bad" : ag.problems.length ? "warn" : "";
-  return `<div class="agent ${tone}" title="From the Brock agent on this host">
+  return `<div class="agent ${tone}" title="From the Vitals agent on this host">
     <span class="dot ${quiet ? "down" : ag.status === "up" ? "up" : ""}"></span>${esc(quiet ? "agent not reporting" : ag.summary || "agent reporting")}${
     ag.problems.length ? ` · <b>${esc(ag.problems.join(" · "))}</b>` : ""}</div>`;
 }
@@ -183,14 +183,14 @@ function serviceCard(s) {
   const where = s.manual ? "" : [s.host, s.port ? `:${s.port}` : null].filter(Boolean).join(" ");
   const sub = s.description || where;
   const up = s.uptime;
-  const upTitle = up ? `Uptime, last ${up.window} (from Brock)` : "";
+  const upTitle = up ? `Uptime, last ${up.window} (from Vitals)` : "";
   const upTag = up && up.style !== "stat" ? (up.url
     ? `<a class="tag uptime ${esc(up.tone)}" href="${esc(up.url)}" target="_blank" rel="noopener" title="${esc(upTitle)}">${esc(up.text)} · ${esc(up.window)}</a>`
     : `<span class="tag uptime ${esc(up.tone)}" title="${esc(upTitle)}">${esc(up.text)} · ${esc(up.window)}</span>`) : "";
   const upStat = up && up.style === "stat"
     ? `<div class="stat ${esc(up.tone)}" title="${esc(upTitle)}"><div class="k">Uptime ${esc(up.window)}</div><div class="v">${esc(up.text)}</div></div>` : "";
   const upBars = up && up.style === "bars" && up.bars?.length
-    ? `<div class="ubars" title="${esc(`Daily uptime, last ${up.bars.length} days (from Brock)`)}">${up.bars.map((t) => `<i class="${esc(t || "")}"></i>`).join("")}</div>` : "";
+    ? `<div class="ubars" title="${esc(`Daily uptime, last ${up.bars.length} days (from Vitals)`)}">${up.bars.map((t) => `<i class="${esc(t || "")}"></i>`).join("")}</div>` : "";
   const stats = (s.stats || []).slice(0, upStat ? 3 : 4).map((st) => {
     const wide = String(st.value).length > 14;
     return `<div class="stat ${esc(st.tone)} ${wide ? "wide" : ""}">${st.series ? spark(st.series) : ""}<div class="k">${esc(st.label)}</div><div class="v" title="${esc(st.value)}">${esc(st.value)}</div></div>`;

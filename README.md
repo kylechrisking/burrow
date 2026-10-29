@@ -115,15 +115,15 @@ wear, whether the last backup worked, pending updates, and a web certificate
 that's about to expire. Containers with a Docker `HEALTHCHECK` that's failing
 are flagged on their card and their host.
 
-## Companion: Brock
+## Companion: Vitals
 
-Sett shows you what's down when you look. [Brock](https://github.com/kylechrisking/brock)
+Sett shows you what's down when you look. [Vitals](https://github.com/kylechrisking/vitals)
 tells you when you're not looking: a small separate container that sends
 alerts to ntfy, Gotify, Discord, Slack or email, with quiet hours,
 maintenance windows and a status page with uptime history. Give it a Sett
 API token and it watches everything Sett discovered, plus Proxmox health,
-without a list of its own. Give Sett a `[brock]` section and each card shows
-its uptime, as a badge, a stat or a 30-day strip. Hosts running Brock's
+without a list of its own. Give Sett a `[vitals]` section and each card shows
+its uptime, as a badge, a stat or a 30-day strip. Hosts running Vitals'
 agent also show what it reports on their card (disk, memory, updates, a
 pending reboot) and anything wrong with them. Neither needs the other.
 

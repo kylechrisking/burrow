@@ -228,15 +228,15 @@ class Qr(unittest.TestCase):
             qr.encode("x" * 300)
 
 
-class BrockUptime(unittest.TestCase):
+class VitalsUptime(unittest.TestCase):
     ROW = {"id": "sett:sonarr@pve:lxc/105", "name": "Sonarr (media)",
            "uptime": {"24h": 100.0, "7d": 99.2, "30d": 97.5, "90d": 99.9}, "bars": [100.0, None, 90.0]}
 
     def test_badge_options(self):
-        from sett.brock import badge
-        b = badge(self.ROW, {}, {}, "http://brock/")
-        self.assertEqual((b["text"], b["window"], b["tone"], b["style"], b["url"]), ("97.5%", "30d", "bad", "tag", "http://brock/"))
-        b = badge(self.ROW, {"window": "7d", "link": False}, {}, "http://brock/")
+        from sett.vitals import badge
+        b = badge(self.ROW, {}, {}, "http://vitals/")
+        self.assertEqual((b["text"], b["window"], b["tone"], b["style"], b["url"]), ("97.5%", "30d", "bad", "tag", "http://vitals/"))
+        b = badge(self.ROW, {"window": "7d", "link": False}, {}, "http://vitals/")
         self.assertEqual((b["text"], b["tone"], b["url"]), ("99.20%", "warn", None))
         self.assertIsNone(badge(self.ROW, {"window": "24h", "hide_perfect": True}, {}, ""))
         self.assertIsNone(badge(self.ROW, {}, {"uptime": False}, ""))
@@ -244,15 +244,15 @@ class BrockUptime(unittest.TestCase):
         self.assertEqual((b["window"], b["bars"]), ("90d", ["ok", None, "bad"]))
 
     def test_cards_get_uptime_by_key_or_name(self):
-        from sett.brock import Brock
+        from sett.vitals import Vitals
         doc = {"checks": [self.ROW, {"id": "config:Printer", "name": "Printer", "uptime": {"30d": 100.0}, "bars": []}]}
-        e = Engine(Config(brock={"url": "http://brock:8098"}, overrides={"Wiki": {"uptime": False}}))
-        e.brock = Brock(e.cfg.brock)
-        import sett.brock as sb
+        e = Engine(Config(vitals={"url": "http://vitals:8098"}, overrides={"Wiki": {"uptime": False}}))
+        e.vitals = Vitals(e.cfg.vitals)
+        import sett.vitals as sb
         real = sb.net.get_json
         sb.net.get_json = lambda url, **kw: doc
         try:
-            e.brock.poll()
+            e.vitals.poll()
         finally:
             sb.net.get_json = real
         e.services = {
@@ -265,23 +265,23 @@ class BrockUptime(unittest.TestCase):
         self.assertEqual(got["Sonarr"]["text"], "97.5%")
         self.assertEqual(got["Printer"]["text"], "100%")
         self.assertIsNone(got["Wiki"])
-        self.assertEqual(st["providers"][-1]["name"], "brock")
+        self.assertEqual(st["providers"][-1]["name"], "vitals")
 
     def test_agent_data_on_host_cards(self):
-        from sett.brock import Brock
+        from sett.vitals import Vitals
         from sett.model import Host, Inventory
-        import sett.brock as sb
+        import sett.vitals as sb
         doc = {"checks": [
             {"id": "agent:pve1/host", "name": "pve1", "status": "up", "summary": "/ 40% · RAM 61% · 3 updates"},
             {"id": "agent:pve1/disk", "name": "pve1 · disk", "status": "down", "detail": "/mnt/tank 93%"},
             {"id": "agent:pve1/services", "name": "pve1 · services", "status": "up", "detail": "all running"},
             {"id": "agent:media/host", "name": "media", "status": "down", "summary": ""}]}
-        e = Engine(Config(brock={"url": "http://brock"}))
-        e.brock = Brock(e.cfg.brock)
+        e = Engine(Config(vitals={"url": "http://vitals"}))
+        e.vitals = Vitals(e.cfg.vitals)
         real = sb.net.get_json
         sb.net.get_json = lambda url, **kw: doc
         try:
-            e.brock.poll()
+            e.vitals.poll()
         finally:
             sb.net.get_json = real
         e.inventories = {"proxmox": Inventory(hosts=[
@@ -296,21 +296,33 @@ class BrockUptime(unittest.TestCase):
         self.assertEqual(guests["media"]["status"], "down")
         self.assertIsNone(guests["ai"])
 
-    def test_unauthorized_brock_says_what_to_do(self):
-        from sett.brock import Brock
-        import sett.brock as sb
+    def test_old_brock_section_still_read(self):
+        import os
+        import tempfile as tf
+        from sett import config as C
+        d = tf.mkdtemp()
+        open(f"{d}/sett.toml", "w").write('[brock]\nurl = "http://old:8098"\n')
+        os.environ["SETT_CONFIG"] = f"{d}/sett.toml"
+        try:
+            self.assertEqual(C.load().vitals["url"], "http://old:8098")
+        finally:
+            del os.environ["SETT_CONFIG"]
+
+    def test_unauthorized_vitals_says_what_to_do(self):
+        from sett.vitals import Vitals
+        import sett.vitals as sb
         real = sb.net.get_json
 
         def boom(url, **kw):
-            raise RuntimeError("HTTP 401 from http://brock/api/status")
+            raise RuntimeError("HTTP 401 from http://vitals/api/status")
         sb.net.get_json = boom
         try:
-            b = Brock({"url": "http://brock"})
+            b = Vitals({"url": "http://vitals"})
             b.poll()
         finally:
             sb.net.get_json = real
         self.assertFalse(b.ok)
-        self.assertIn("[brock] token", b.error)
+        self.assertIn("[vitals] token", b.error)
 
 
 class Passwords(unittest.TestCase):

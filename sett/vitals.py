@@ -1,14 +1,14 @@
-"""Uptime from Brock (https://github.com/kylechrisking/brock) on Sett's cards.
+"""Uptime from Vitals (https://github.com/kylechrisking/vitals) on Sett's cards.
 
-    [brock]
-    url = "http://brock.lan:8098"
-    token = "..."            # one of Brock's [tokens]; better in the secrets file under [brock]
+    [vitals]
+    url = "http://vitals.lan:8098"
+    token = "..."            # one of Vitals' [tokens]; better in the secrets file under [vitals]
     window = "30d"           # 24h | 7d | 30d | 90d: the number shown
     style = "tag"            # tag: a small badge  stat: a stat tile  bars: a 30-day strip under the card
     warn_below = 99.5        # amber under this
     bad_below = 98           # red under this
     hide_perfect = false     # leave the badge off cards at 100%
-    link = true              # the badge opens Brock's page
+    link = true              # the badge opens Vitals' page
     every = 60               # seconds between reads
 
 Per card, in [override."<name or app>"]:
@@ -16,8 +16,8 @@ Per card, in [override."<name or app>"]:
     uptime_window = "7d"
     uptime_style = "bars"
 
-Brock reports the services it watches through Sett under their Sett key, so
-those match exactly; Brock's own checks match a card with the same name.
+Vitals reports the services it watches through Sett under their Sett key, so
+those match exactly; Vitals' own checks match a card with the same name.
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ WINDOWS = ("24h", "7d", "30d", "90d")
 STYLES = ("tag", "stat", "bars")
 
 
-class Brock:
+class Vitals:
     def __init__(self, conf: dict):
         self.url = conf["url"].rstrip("/")
         self.token = conf.get("token", "")
@@ -50,9 +50,9 @@ class Brock:
         except Exception as e:
             msg = str(e)
             if "HTTP 401" in msg:
-                msg = "Brock wants a token: set [brock] token to one of Brock's [tokens]"
+                msg = "Vitals wants a token: set [vitals] token to one of Vitals' [tokens]"
             self.ok, self.error = False, msg[:200]
-            log.info("brock: %s", self.error)
+            log.info("vitals: %s", self.error)
             return
         by_key, by_name, hosts = {}, {}, {}
         for c in doc.get("checks", []):
@@ -60,7 +60,7 @@ class Brock:
             if cid.startswith("sett:"):
                 by_key[cid[5:]] = c
             elif cid.startswith("agent:"):
-                # Brock's host agents: "agent:pve1/host" is the host, "agent:pve1/disk" one of its checks.
+                # Vitals' host agents: "agent:pve1/host" is the host, "agent:pve1/disk" one of its checks.
                 host, _, part = cid[6:].partition("/")
                 h = hosts.setdefault(host.lower(), {"name": host, "status": "pending", "summary": "", "problems": []})
                 if part == "host":
@@ -83,7 +83,7 @@ class Brock:
         return None
 
     def host(self, *names: str) -> dict | None:
-        """What Brock's agent says about a host, matched by any of its names."""
+        """What Vitals' agent says about a host, matched by any of its names."""
         for n in names:
             if n and n.lower() in self.hosts:
                 return self.hosts[n.lower()]
@@ -94,7 +94,7 @@ class Brock:
 
 
 def badge(row: dict, conf: dict, override: dict, page_url: str) -> dict | None:
-    """What a card shows for one Brock check, after the options and the card's override."""
+    """What a card shows for one Vitals check, after the options and the card's override."""
     if override.get("uptime") is False or conf.get("enabled") is False:
         return None
     window = override.get("uptime_window") or conf.get("window", "30d")

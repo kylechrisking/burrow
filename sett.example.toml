@@ -46,16 +46,16 @@ file = "/secrets/apps.toml"
 # password_hash = "pbkdf2_sha256$600000$..."
 # totp_secret = "BASE32SECRET"           # optional: asks for a 6-digit code as well
 
-# Uptime from Brock (github.com/kylechrisking/brock) on each card. Optional.
-# [brock]
+# Uptime from Vitals (github.com/kylechrisking/vitals) on each card. Optional.
+# [vitals]
 # url = "http://192.168.1.31:8098"
-# token = "..."            # one of Brock's [tokens]; better in the secrets file under [brock]
+# token = "..."            # one of Vitals' [tokens]; better in the secrets file under [vitals]
 # window = "30d"           # 24h | 7d | 30d | 90d
 # style = "tag"            # tag | stat | bars
 # warn_below = 99.5
 # bad_below = 98
 # hide_perfect = false     # no badge on cards at 100%
-# link = true              # the badge opens Brock's status page
+# link = true              # the badge opens Vitals' status page
 # Per card: [override."Plex"] uptime = false, or uptime_window = "7d", uptime_style = "bars"
 
 [hide]
