@@ -521,6 +521,8 @@ class Engine:
             "categories": self.cfg.categories,
             "bookmarks": self.cfg.bookmarks,
             "weather": self.weather,
+            "sites": ([{**s, "url": self.vitals.url + "/"} for s in self.vitals.sites]
+                      if self.vitals and self.cfg.vitals.get("sites", True) else []),
             "search": self.cfg.search,
             "views": self.cfg.views,
             "ui": self.cfg.ui,

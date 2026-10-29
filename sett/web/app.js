@@ -295,6 +295,11 @@ function render() {
   }).join("");
 
   const w = st.weather;
+  // Vitals' sites ("HomeLab ●"): the whole-lab view, a glance from the header.
+  const sites = st.sites || [];
+  $("#sites").hidden = !sites.length;
+  $("#sites").innerHTML = sites.map((x) => `<a class="site-pill ${esc(x.status)}" href="${esc(x.url)}" target="_blank" rel="noopener"
+      title="${esc(x.detail || x.status)}"><span class="dot ${x.status === "up" ? "up" : x.status === "down" ? "down" : ""}"></span>${esc(x.name)}</a>`).join("");
   $("#weather").hidden = !w;
   if (w) $("#weather").textContent = `${w.temp}${w.unit} ${w.text} · H ${w.high}° L ${w.low}°${w.label ? ` · ${w.label}` : ""}`;
   $("#q").placeholder = st.search ? "Filter, or Enter to search the web" : "Filter";

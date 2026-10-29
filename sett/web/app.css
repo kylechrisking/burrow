@@ -309,3 +309,10 @@ a.tag.uptime:hover { border-color: var(--text-muted); }
 .agent.warn b { color: var(--warn); font-weight: 600; }
 .agent.bad { color: var(--bad); }
 .chip.trouble { border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+
+/* ---- Vitals' sites in the header ---- */
+.sites { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.site-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 9px; border-radius: 99px;
+  border: 1px solid var(--border-strong); color: var(--text-muted); text-decoration: none; }
+.site-pill:hover { color: var(--text); }
+.site-pill.down { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 55%, transparent); }

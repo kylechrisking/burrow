@@ -39,6 +39,7 @@ class Vitals:
         self.by_key: dict[str, dict] = {}
         self.by_name: dict[str, dict] = {}
         self.hosts: dict[str, dict] = {}     # agent host name (lower) -> {summary, status, problems}
+        self.sites: list[dict] = []          # Vitals' sites: [{name, status, detail}]
         self.error: str | None = None
         self.ok: bool | None = None
         self.at: float | None = None
@@ -54,10 +55,12 @@ class Vitals:
             self.ok, self.error = False, msg[:200]
             log.info("vitals: %s", self.error)
             return
-        by_key, by_name, hosts = {}, {}, {}
+        by_key, by_name, hosts, sites = {}, {}, {}, []
         for c in doc.get("checks", []):
             cid = str(c.get("id", ""))
-            if cid.startswith("sett:"):
+            if cid.startswith("site:"):
+                sites.append({"name": c.get("name"), "status": c.get("status", "pending"), "detail": c.get("detail", "")})
+            elif cid.startswith("sett:"):
                 by_key[cid[5:]] = c
             elif cid.startswith("agent:"):
                 # Vitals' host agents: "agent:pve1/host" is the host, "agent:pve1/disk" one of its checks.
@@ -70,7 +73,7 @@ class Vitals:
                     h["problems"].append(f"{label}: {c['detail']}" if c.get("detail") else label)
             else:
                 by_name[str(c.get("name", "")).lower()] = c
-        self.by_key, self.by_name, self.hosts = by_key, by_name, hosts
+        self.by_key, self.by_name, self.hosts, self.sites = by_key, by_name, hosts, sites
         self.ok, self.error = True, None
 
     def find(self, key: str, *names: str) -> dict | None:

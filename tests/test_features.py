@@ -333,7 +333,8 @@ class VitalsUptime(unittest.TestCase):
             {"id": "agent:pve1/host", "name": "pve1", "status": "up", "summary": "/ 40% · RAM 61% · 3 updates"},
             {"id": "agent:pve1/disk", "name": "pve1 · disk", "status": "down", "detail": "/mnt/tank 93%"},
             {"id": "agent:pve1/services", "name": "pve1 · services", "status": "up", "detail": "all running"},
-            {"id": "agent:media/host", "name": "media", "status": "down", "summary": ""}]}
+            {"id": "agent:media/host", "name": "media", "status": "down", "summary": ""},
+            {"id": "site:HomeLab", "name": "HomeLab", "status": "up", "detail": "all 6 up"}]}
         e = Engine(Config(vitals={"url": "http://vitals"}))
         e.vitals = Vitals(e.cfg.vitals)
         real = sb.net.get_json
@@ -353,6 +354,7 @@ class VitalsUptime(unittest.TestCase):
         guests = {g["name"]: g["agent"] for g in node["guests"]}
         self.assertEqual(guests["media"]["status"], "down")
         self.assertIsNone(guests["ai"])
+        self.assertEqual(st["sites"], [{"name": "HomeLab", "status": "up", "detail": "all 6 up", "url": "http://vitals/"}])
 
     def test_old_brock_section_still_read(self):
         import os
