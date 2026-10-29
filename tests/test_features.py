@@ -267,6 +267,35 @@ class BrockUptime(unittest.TestCase):
         self.assertIsNone(got["Wiki"])
         self.assertEqual(st["providers"][-1]["name"], "brock")
 
+    def test_agent_data_on_host_cards(self):
+        from sett.brock import Brock
+        from sett.model import Host, Inventory
+        import sett.brock as sb
+        doc = {"checks": [
+            {"id": "agent:pve1/host", "name": "pve1", "status": "up", "summary": "/ 40% · RAM 61% · 3 updates"},
+            {"id": "agent:pve1/disk", "name": "pve1 · disk", "status": "down", "detail": "/mnt/tank 93%"},
+            {"id": "agent:pve1/services", "name": "pve1 · services", "status": "up", "detail": "all running"},
+            {"id": "agent:media/host", "name": "media", "status": "down", "summary": ""}]}
+        e = Engine(Config(brock={"url": "http://brock"}))
+        e.brock = Brock(e.cfg.brock)
+        real = sb.net.get_json
+        sb.net.get_json = lambda url, **kw: doc
+        try:
+            e.brock.poll()
+        finally:
+            sb.net.get_json = real
+        e.inventories = {"proxmox": Inventory(hosts=[
+            Host("pve:node/pve1", "pve1", "node", "online", "10.0.0.124"),
+            Host("pve:lxc/130", "media", "lxc", "running", "10.0.0.130", parent="pve:node/pve1"),
+            Host("pve:lxc/131", "ai", "lxc", "running", "10.0.0.131", parent="pve:node/pve1")])}
+        st = e.state()
+        [node] = st["nodes"]
+        self.assertEqual(node["agent"], {"name": "pve1", "status": "up", "summary": "/ 40% · RAM 61% · 3 updates",
+                                         "problems": ["disk: /mnt/tank 93%"]})
+        guests = {g["name"]: g["agent"] for g in node["guests"]}
+        self.assertEqual(guests["media"]["status"], "down")
+        self.assertIsNone(guests["ai"])
+
     def test_unauthorized_brock_says_what_to_do(self):
         from sett.brock import Brock
         import sett.brock as sb

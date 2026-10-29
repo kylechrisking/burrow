@@ -127,9 +127,22 @@ function renderSummary(s) {
   }).join("");
 }
 
+// What Brock's agent on a host reports (disk, RAM, updates...), and any problem it has.
+function agentLine(ag) {
+  if (!ag) return "";
+  const quiet = ag.status === "down";
+  const tone = quiet ? "bad" : ag.problems.length ? "warn" : "";
+  return `<div class="agent ${tone}" title="From the Brock agent on this host">
+    <span class="dot ${quiet ? "down" : ag.status === "up" ? "up" : ""}"></span>${esc(quiet ? "agent not reporting" : ag.summary || "agent reporting")}${
+    ag.problems.length ? ` · <b>${esc(ag.problems.join(" · "))}</b>` : ""}</div>`;
+}
+
 function guestChip(g, svcCount) {
   const off = g.status !== "running";
-  return `<span class="chip ${off ? "off" : ""}" title="${esc(g.kind.toUpperCase())} ${esc(g.vmid)} · ${esc(g.address || "no IP found")} · ${esc(g.status)}">
+  const ag = g.agent;
+  const trouble = ag && (ag.problems.length || ag.status === "down");
+  const agentNote = ag ? ` · ${ag.status === "down" ? "agent not reporting" : [ag.summary, ...ag.problems].filter(Boolean).join(" · ")}` : "";
+  return `<span class="chip ${off ? "off" : ""}${trouble ? " trouble" : ""}" title="${esc(g.kind.toUpperCase())} ${esc(g.vmid)} · ${esc(g.address || "no IP found")} · ${esc(g.status)}${esc(agentNote)}">
     <span class="dot ${esc(g.status)}"></span><span class="id">${esc(g.vmid)}</span>${esc(g.name)}
     ${svcCount ? `<span class="n">${svcCount}</span>` : ""}</span>`;
 }
@@ -159,6 +172,7 @@ function hostCard(h, svcByHost) {
     ${trend ? `<div class="trend" title="CPU, last hour">${trend}</div>` : ""}
     ${storage ? `<div class="storage">${storage}</div>` : ""}
     ${health ? `<div class="health">${health}</div>` : ""}
+    ${agentLine(h.agent)}
     ${containers.length ? `<div class="muted" style="font-size:12.5px">Docker · ${running} of ${containers.length} containers running${
       sick.length ? ` · <span class="warn-text" title="${esc(sick.join(", "))}">${sick.length} unhealthy</span>` : ""}</div>` : ""}
     ${guests.length ? `<div class="guests">${(query ? shown : guests).map((g) => guestChip(g, svcByHost[g.id] || 0)).join("")}</div>` : ""}

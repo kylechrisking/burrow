@@ -491,8 +491,8 @@ class Engine:
             (guests[h.parent] if h.parent in hosts else others).append(h)
         node_out = []
         for n in nodes:
-            nd = n.to_dict()
-            nd["guests"] = [g.to_dict() for g in sorted(guests[n.id], key=lambda g: g.vmid or 0)]
+            nd = self._with_agent(n)
+            nd["guests"] = [self._with_agent(g) for g in sorted(guests[n.id], key=lambda g: g.vmid or 0)]
             node_out.append(nd)
 
         guest_list = [g for gs in guests.values() for g in gs]
@@ -513,7 +513,7 @@ class Engine:
                 "services_up": sum(d["status"] == "up" for d in svc_out),
             },
             "nodes": node_out,
-            "hosts": [h.to_dict() for h in sorted(others, key=lambda h: h.name)],
+            "hosts": [self._with_agent(h) for h in sorted(others, key=lambda h: h.name)],
             "services": sorted(svc_out, key=lambda d: (d["category"], d["name"].lower())),
             "categories": self.cfg.categories,
             "bookmarks": self.cfg.bookmarks,
@@ -526,6 +526,12 @@ class Engine:
                 "name": "brock", "ok": self.brock.ok, "error": self.brock.error, "at": self.brock.at,
                 "detail": self.brock.describe() if self.brock.ok else ""}] if self.brock else []),
         }
+
+    def _with_agent(self, h: Host) -> dict:
+        """A host for the page, plus what Brock's agent on it reports, if one does."""
+        d = h.to_dict()
+        d["agent"] = self.brock.host(h.name, *h.aliases) if self.brock else None
+        return d
 
     def icon_urls(self) -> set[str]:
         """Icon URLs something on the page can ask for: a card's icon (labels,

@@ -38,6 +38,7 @@ class Brock:
         self.every = float(conf.get("every", 60))
         self.by_key: dict[str, dict] = {}
         self.by_name: dict[str, dict] = {}
+        self.hosts: dict[str, dict] = {}     # agent host name (lower) -> {summary, status, problems}
         self.error: str | None = None
         self.ok: bool | None = None
         self.at: float | None = None
@@ -53,14 +54,23 @@ class Brock:
             self.ok, self.error = False, msg[:200]
             log.info("brock: %s", self.error)
             return
-        by_key, by_name = {}, {}
+        by_key, by_name, hosts = {}, {}, {}
         for c in doc.get("checks", []):
             cid = str(c.get("id", ""))
             if cid.startswith("sett:"):
                 by_key[cid[5:]] = c
+            elif cid.startswith("agent:"):
+                # Brock's host agents: "agent:pve1/host" is the host, "agent:pve1/disk" one of its checks.
+                host, _, part = cid[6:].partition("/")
+                h = hosts.setdefault(host.lower(), {"name": host, "status": "pending", "summary": "", "problems": []})
+                if part == "host":
+                    h["status"], h["summary"] = c.get("status", "pending"), c.get("summary") or ""
+                elif c.get("status") == "down":
+                    label = str(c.get("name", part)).split("·")[-1].strip()
+                    h["problems"].append(f"{label}: {c['detail']}" if c.get("detail") else label)
             else:
                 by_name[str(c.get("name", "")).lower()] = c
-        self.by_key, self.by_name = by_key, by_name
+        self.by_key, self.by_name, self.hosts = by_key, by_name, hosts
         self.ok, self.error = True, None
 
     def find(self, key: str, *names: str) -> dict | None:
@@ -70,6 +80,13 @@ class Brock:
         for n in names:
             if n and n.lower() in self.by_name:
                 return self.by_name[n.lower()]
+        return None
+
+    def host(self, *names: str) -> dict | None:
+        """What Brock's agent says about a host, matched by any of its names."""
+        for n in names:
+            if n and n.lower() in self.hosts:
+                return self.hosts[n.lower()]
         return None
 
     def describe(self) -> str:

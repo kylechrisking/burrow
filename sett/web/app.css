@@ -302,3 +302,10 @@ a.tag.uptime:hover { border-color: var(--text-muted); }
 .ubars i.ok { background: color-mix(in srgb, var(--ok) 75%, transparent); }
 .ubars i.warn { background: var(--warn); }
 .ubars i.bad { background: var(--bad); }
+
+/* ---- what Brock's agent reports about a host ---- */
+.agent { display: flex; align-items: center; gap: 2px; font-size: 12.5px; color: var(--text-muted); flex-wrap: wrap; }
+.agent .dot { margin-right: 6px; }
+.agent.warn b { color: var(--warn); font-weight: 600; }
+.agent.bad { color: var(--bad); }
+.chip.trouble { border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
