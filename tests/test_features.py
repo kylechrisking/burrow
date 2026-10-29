@@ -23,7 +23,7 @@ from sett.providers import docker as D  # noqa: E402
 from sett.providers import proxmox as P  # noqa: E402
 from sett.server import make_handler  # noqa: E402
 
-RFC_SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"   # "12345678901234567890", RFC 6238 appendix B
+RFC_SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"   # ggignore: "12345678901234567890", the RFC 6238 test vector
 
 
 class Numbers(unittest.TestCase):
