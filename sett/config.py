@@ -37,6 +37,7 @@ class Config:
     ui: dict = field(default_factory=dict)                  # [ui] accent, wallpaper, density, clock
     secrets: dict[str, dict] = field(default_factory=dict)
     auth: dict = field(default_factory=dict)                # [auth] sign-in, see auth.py
+    brock: dict = field(default_factory=dict)               # [brock] uptime on cards, see brock.py
     check_interval: float = 15
     identify_interval: float = 300
 
@@ -78,6 +79,7 @@ def load() -> Config:
         views=raw.get("view", []),
         ui=raw.get("ui", {}),
         auth=raw.get("auth", {}),
+        brock=raw.get("brock", {}),
         config_dir=path.parent,
         check_interval=float(raw.get("check_interval", 15)),
         identify_interval=float(raw.get("identify_interval", 300)),
@@ -104,6 +106,8 @@ def load() -> Config:
         if os.name == "posix" and sp.stat().st_mode & 0o077:
             log.warning("secrets file %s is readable by group/other; chmod 600 it", sp)
         log.info("secrets: %d app(s) from %s", len(cfg.secrets), sp)
+    if isinstance(cfg.secrets.get("brock"), dict):   # the token can live with the other secrets
+        cfg.brock = {**cfg.brock, **cfg.secrets["brock"]}
     cfg.files = files
     return cfg
 

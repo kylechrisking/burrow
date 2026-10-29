@@ -122,7 +122,8 @@ tells you when you're not looking: a small separate container that sends
 alerts to ntfy, Gotify, Discord, Slack or email, with quiet hours,
 maintenance windows and a status page with uptime history. Give it a Sett
 API token and it watches everything Sett discovered, plus Proxmox health,
-without a list of its own. Neither needs the other.
+without a list of its own. Give Sett a `[brock]` section and each card shows
+its uptime, as a badge, a stat or a 30-day strip. Neither needs the other.
 
 ## Security
 

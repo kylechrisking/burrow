@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 
 from . import apps, net
 from .apps.base import REGISTRY, Ctx
+from .brock import Brock, badge
 from .config import Config, data_dir
 from .history import History, apply_rules
 from .model import Endpoint, Host, Service, Stat
@@ -50,6 +51,7 @@ class Engine:
         self.force_identify = False
         self.config_error: str | None = None
         self.history = History()
+        self.brock: Brock | None = None
         self.data = data_dir()
         self.history_file = self.data / "history.json" if self.data else None
         if self.history_file:
@@ -99,6 +101,19 @@ class Engine:
             threading.Thread(target=self._provider_loop, args=(p, self.gen), daemon=True, name=p.name).start()
         if self.cfg.weather.get("latitude") is not None:
             threading.Thread(target=self._weather_loop, args=(self.gen,), daemon=True, name="weather").start()
+        self._start_brock()
+
+    def _start_brock(self) -> None:
+        self.brock = Brock(self.cfg.brock) if self.cfg.brock.get("url") else None
+        if self.brock:
+            threading.Thread(target=self._brock_loop, args=(self.brock,), daemon=True, name="brock").start()
+
+    def _brock_loop(self, feed: Brock) -> None:
+        while feed is self.brock:
+            feed.poll()
+            feed.at = time.time()
+            self.notify()
+            time.sleep(feed.every)
 
     def _watch_loop(self) -> None:
         """Reload sett.toml and the secrets file when they change: display settings
@@ -120,7 +135,11 @@ class Engine:
                 self.weather = None   # removed or moved: never show the old place's forecast
             restart = config.providers_changed(self.cfg, new) or self.cfg.weather != new.weather
             new.port = self.cfg.port   # the listening socket cannot move
+            brock_moved = {k: new.brock.get(k) for k in ("url", "token", "every")} != \
+                {k: self.cfg.brock.get(k) for k in ("url", "token", "every")}
             self.cfg = new
+            if brock_moved and not restart:
+                self._start_brock()   # a full restart below starts it anyway
             if restart:
                 with self.lock:
                     self.gen += 1
@@ -459,6 +478,8 @@ class Engine:
                 continue
             d.update({k: o[k] for k in ("name", "description", "url", "category", "icon") if k in o})
             d["stats"] = _shape_stats(s, o)
+            row = self.brock.find(s.key, d["name"], s.name) if self.brock else None
+            d["uptime"] = badge(row, self.cfg.brock, o, self.brock.url + "/") if row else None
             svc_out.append(d)
 
         nodes = sorted((h for h in hosts.values() if h.kind == "node"), key=lambda h: h.name)
@@ -501,7 +522,9 @@ class Engine:
             "views": self.cfg.views,
             "ui": self.cfg.ui,
             "config_error": self.config_error,
-            "providers": list(self.pstatus.values()),
+            "providers": list(self.pstatus.values()) + ([{
+                "name": "brock", "ok": self.brock.ok, "error": self.brock.error, "at": self.brock.at,
+                "detail": self.brock.describe() if self.brock.ok else ""}] if self.brock else []),
         }
 
     def icon_urls(self) -> set[str]:

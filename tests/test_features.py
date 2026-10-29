@@ -228,6 +228,62 @@ class Qr(unittest.TestCase):
             qr.encode("x" * 300)
 
 
+class BrockUptime(unittest.TestCase):
+    ROW = {"id": "sett:sonarr@pve:lxc/105", "name": "Sonarr (media)",
+           "uptime": {"24h": 100.0, "7d": 99.2, "30d": 97.5, "90d": 99.9}, "bars": [100.0, None, 90.0]}
+
+    def test_badge_options(self):
+        from sett.brock import badge
+        b = badge(self.ROW, {}, {}, "http://brock/")
+        self.assertEqual((b["text"], b["window"], b["tone"], b["style"], b["url"]), ("97.5%", "30d", "bad", "tag", "http://brock/"))
+        b = badge(self.ROW, {"window": "7d", "link": False}, {}, "http://brock/")
+        self.assertEqual((b["text"], b["tone"], b["url"]), ("99.20%", "warn", None))
+        self.assertIsNone(badge(self.ROW, {"window": "24h", "hide_perfect": True}, {}, ""))
+        self.assertIsNone(badge(self.ROW, {}, {"uptime": False}, ""))
+        b = badge(self.ROW, {}, {"uptime_style": "bars", "uptime_window": "90d"}, "")
+        self.assertEqual((b["window"], b["bars"]), ("90d", ["ok", None, "bad"]))
+
+    def test_cards_get_uptime_by_key_or_name(self):
+        from sett.brock import Brock
+        doc = {"checks": [self.ROW, {"id": "config:Printer", "name": "Printer", "uptime": {"30d": 100.0}, "bars": []}]}
+        e = Engine(Config(brock={"url": "http://brock:8098"}, overrides={"Wiki": {"uptime": False}}))
+        e.brock = Brock(e.cfg.brock)
+        import sett.brock as sb
+        real = sb.net.get_json
+        sb.net.get_json = lambda url, **kw: doc
+        try:
+            e.brock.poll()
+        finally:
+            sb.net.get_json = real
+        e.services = {
+            "a": Service("a", "sonarr", "Sonarr", "Media", "sonarr", "pve:lxc/105", "10.0.0.5", 8989,
+                         key="sonarr@pve:lxc/105", status="up"),
+            "b": Service("manual:Printer", "manual", "Printer", "Links", "p", None, "", 80, manual=True),
+            "c": Service("manual:Wiki", "manual", "Wiki", "Links", "w", None, "", 80, manual=True)}
+        st = e.state()
+        got = {s["name"]: s["uptime"] for s in st["services"]}
+        self.assertEqual(got["Sonarr"]["text"], "97.5%")
+        self.assertEqual(got["Printer"]["text"], "100%")
+        self.assertIsNone(got["Wiki"])
+        self.assertEqual(st["providers"][-1]["name"], "brock")
+
+    def test_unauthorized_brock_says_what_to_do(self):
+        from sett.brock import Brock
+        import sett.brock as sb
+        real = sb.net.get_json
+
+        def boom(url, **kw):
+            raise RuntimeError("HTTP 401 from http://brock/api/status")
+        sb.net.get_json = boom
+        try:
+            b = Brock({"url": "http://brock"})
+            b.poll()
+        finally:
+            sb.net.get_json = real
+        self.assertFalse(b.ok)
+        self.assertIn("[brock] token", b.error)
+
+
 class Passwords(unittest.TestCase):
     def test_hash_and_check(self):
         h = A.hash_password("correct horse", rounds=1000)

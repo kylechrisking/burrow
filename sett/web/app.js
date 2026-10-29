@@ -168,14 +168,24 @@ function hostCard(h, svcByHost) {
 function serviceCard(s) {
   const where = s.manual ? "" : [s.host, s.port ? `:${s.port}` : null].filter(Boolean).join(" ");
   const sub = s.description || where;
-  const stats = (s.stats || []).slice(0, 4).map((st) => {
+  const up = s.uptime;
+  const upTitle = up ? `Uptime, last ${up.window} (from Brock)` : "";
+  const upTag = up && up.style !== "stat" ? (up.url
+    ? `<a class="tag uptime ${esc(up.tone)}" href="${esc(up.url)}" target="_blank" rel="noopener" title="${esc(upTitle)}">${esc(up.text)} · ${esc(up.window)}</a>`
+    : `<span class="tag uptime ${esc(up.tone)}" title="${esc(upTitle)}">${esc(up.text)} · ${esc(up.window)}</span>`) : "";
+  const upStat = up && up.style === "stat"
+    ? `<div class="stat ${esc(up.tone)}" title="${esc(upTitle)}"><div class="k">Uptime ${esc(up.window)}</div><div class="v">${esc(up.text)}</div></div>` : "";
+  const upBars = up && up.style === "bars" && up.bars?.length
+    ? `<div class="ubars" title="${esc(`Daily uptime, last ${up.bars.length} days (from Brock)`)}">${up.bars.map((t) => `<i class="${esc(t || "")}"></i>`).join("")}</div>` : "";
+  const stats = (s.stats || []).slice(0, upStat ? 3 : 4).map((st) => {
     const wide = String(st.value).length > 14;
     return `<div class="stat ${esc(st.tone)} ${wide ? "wide" : ""}">${st.series ? spark(st.series) : ""}<div class="k">${esc(st.label)}</div><div class="v" title="${esc(st.value)}">${esc(st.value)}</div></div>`;
-  }).join("");
+  }).join("") + upStat;
   const latency = s.status === "unknown" ? "" : s.status === "up" && s.latency_ms != null ? `${s.latency_ms} ms`
     : s.status === "down" && s.down_since ? `down ${since(s.down_since)}` : s.status;
   const foot = [
     s.description && where ? `<span class="tag">${esc(where)}</span>` : "",
+    upTag,
     s.version ? `<span class="tag">v${esc(String(s.version).replace(/^v/, ""))}</span>` : "",
     s.container && s.container.toLowerCase() !== s.name.toLowerCase() ? `<span class="tag">${esc(s.container)}</span>` : "",
     s.health === "unhealthy" || s.health === "starting" ? `<span class="tag ${s.health === "unhealthy" ? "warn" : ""}" title="Docker health check">${esc(s.health)}</span>` : "",
@@ -188,6 +198,7 @@ function serviceCard(s) {
       <div class="svc-title"><b>${esc(s.name)}</b><span class="${s.description ? "" : "mono"}" title="${esc(sub)}">${esc(sub)}</span></div>
       ${s.status === "unknown" ? `<div class="status link">↗</div>` : `<div class="status"><span class="dot ${esc(s.status)}"></span>${esc(latency)}</div>`}</div>
     ${stats ? `<div class="stats">${stats}</div>` : ""}
+    ${upBars}
     <div class="svc-foot">${foot}<button type="button" class="menu-btn" data-menu="${esc(s.key)}" aria-label="Options for ${esc(s.name)}">⋯</button></div>
   </article>`;
 }

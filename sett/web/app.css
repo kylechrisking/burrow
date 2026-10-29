@@ -290,3 +290,15 @@ body.compact .summary, body.compact .block { margin-bottom: 20px; }
 }
 .login button:disabled { opacity: .6; cursor: wait; }
 .login-msg { margin: 0; color: var(--bad); font-size: 13px; }
+
+/* ---- uptime from Brock ---- */
+a.tag.uptime { position: relative; z-index: 2; color: inherit; text-decoration: none; }
+a.tag.uptime:hover { border-color: var(--text-muted); }
+.tag.uptime.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.tag.uptime.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.tag.uptime.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
+.ubars { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; height: 14px; }
+.ubars i { border-radius: 2px; background: var(--border-strong); }
+.ubars i.ok { background: color-mix(in srgb, var(--ok) 75%, transparent); }
+.ubars i.warn { background: var(--warn); }
+.ubars i.bad { background: var(--bad); }
