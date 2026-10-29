@@ -13,7 +13,8 @@ from urllib.parse import urlparse
 
 from . import apps, net
 from .apps.base import REGISTRY, Ctx
-from .config import Config
+from .brock import Brock, badge
+from .config import Config, data_dir
 from .history import History, apply_rules
 from .model import Endpoint, Host, Service, Stat
 from .providers import load_providers
@@ -21,6 +22,7 @@ from .providers import load_providers
 log = logging.getLogger(__name__)
 
 MISSING_GRACE = 3600   # keep a service that vanished from discovery, marked down, for an hour
+HISTORY_SAVE_EVERY = 300
 
 
 class Engine:
@@ -49,6 +51,35 @@ class Engine:
         self.force_identify = False
         self.config_error: str | None = None
         self.history = History()
+        self.brock: Brock | None = None
+        self.data = data_dir()
+        self.history_file = self.data / "history.json" if self.data else None
+        if self.history_file:
+            n = self.history.load(self.history_file)
+            if n:
+                log.info("history: %d series restored from %s", n, self.history_file)
+        # Bumped whenever something the page shows may have changed; /api/events waits on it.
+        self.version = 0
+        self.updated = threading.Condition()
+
+    def notify(self) -> None:
+        with self.updated:
+            self.version += 1
+            self.updated.notify_all()
+
+    def wait_for_change(self, seen: int, timeout: float) -> int:
+        """Block until the version moves past `seen` (or the timeout); returns the version."""
+        with self.updated:
+            self.updated.wait_for(lambda: self.version != seen, timeout=timeout)
+            return self.version
+
+    def save_history(self) -> None:
+        if not self.history_file:
+            return
+        try:
+            self.history.save(self.history_file)
+        except OSError as e:
+            log.warning("history: could not save to %s: %s", self.history_file, e)
 
     # ---- loops -------------------------------------------------------------
 
@@ -57,6 +88,12 @@ class Engine:
         threading.Thread(target=self._identify_loop, daemon=True, name="identify").start()
         threading.Thread(target=self._check_loop, daemon=True, name="check").start()
         threading.Thread(target=self._watch_loop, daemon=True, name="watch").start()
+        threading.Thread(target=self._history_loop, daemon=True, name="history").start()
+
+    def _history_loop(self) -> None:
+        while True:
+            time.sleep(HISTORY_SAVE_EVERY)
+            self.save_history()
 
     def _start_sources(self) -> None:
         log.info("providers: %s", ", ".join(p.name for p in self.providers) or "none (add [proxmox]/[docker]/[scan] config)")
@@ -64,6 +101,19 @@ class Engine:
             threading.Thread(target=self._provider_loop, args=(p, self.gen), daemon=True, name=p.name).start()
         if self.cfg.weather.get("latitude") is not None:
             threading.Thread(target=self._weather_loop, args=(self.gen,), daemon=True, name="weather").start()
+        self._start_brock()
+
+    def _start_brock(self) -> None:
+        self.brock = Brock(self.cfg.brock) if self.cfg.brock.get("url") else None
+        if self.brock:
+            threading.Thread(target=self._brock_loop, args=(self.brock,), daemon=True, name="brock").start()
+
+    def _brock_loop(self, feed: Brock) -> None:
+        while feed is self.brock:
+            feed.poll()
+            feed.at = time.time()
+            self.notify()
+            time.sleep(feed.every)
 
     def _watch_loop(self) -> None:
         """Reload sett.toml and the secrets file when they change: display settings
@@ -81,9 +131,15 @@ class Engine:
                 self.cfg.files = {f: config._mtime(Path(f)) for f in self.cfg.files}
                 continue
             self.config_error = None
+            if self.cfg.weather != new.weather:
+                self.weather = None   # removed or moved: never show the old place's forecast
             restart = config.providers_changed(self.cfg, new) or self.cfg.weather != new.weather
             new.port = self.cfg.port   # the listening socket cannot move
+            brock_moved = {k: new.brock.get(k) for k in ("url", "token", "every")} != \
+                {k: self.cfg.brock.get(k) for k in ("url", "token", "every")}
             self.cfg = new
+            if brock_moved and not restart:
+                self._start_brock()   # a full restart below starts it anyway
             if restart:
                 with self.lock:
                     self.gen += 1
@@ -94,6 +150,7 @@ class Engine:
                 self._start_sources()
             self.force_identify = True
             self.changed.set()
+            self.notify()
             log.info("config reloaded%s", " (discovery restarted)" if restart else "")
 
     def _provider_loop(self, p, gen: int) -> None:
@@ -119,6 +176,7 @@ class Engine:
                 st.update(ok=False, error=str(e)[:200])
             st["at"] = time.time()
             self.changed.set()
+            self.notify()
             time.sleep(p.interval)
 
     def _identify_loop(self) -> None:
@@ -139,6 +197,7 @@ class Engine:
                     except Exception:
                         log.exception("identify failed")
                     log.info("identify: %d services in %.1fs", len(self.services), time.monotonic() - t0)
+                    self.notify()
                     last_sig, last_run = sig, time.monotonic()
 
     def _check_loop(self) -> None:
@@ -233,12 +292,14 @@ class Engine:
                 if old and old.app == s.app:  # keep the last stats so cards do not flicker
                     s.stats, s.note = old.stats, old.note
                     s.version = s.version or old.version
+                    s.down_since = old.down_since
             for sid, old in self.services.items():
                 if sid in new or old.manual or old.host_id not in hosts:
                     continue
                 since = old.missing_since or now
                 if now - since < MISSING_GRACE:
                     old.status, old.missing_since = "down", since
+                    old.down_since = old.down_since or since
                     new[sid] = old
             self.services = new
             self.identified_at = now
@@ -269,7 +330,8 @@ class Engine:
             got = apps.fetch(addr, port, "/", "http", cache)
             image = e.hint.split()[0].split("/")[-1].split(":")[0]
             return Service(
-                id=f"{addr}:{port}", app="container", name=e.labels.get("sett.name") or e.container,
+                id=f"{addr}:{port}", key=_key("container", t["host"], e.container, f"{addr}:{port}"),
+                app="container", name=e.labels.get("sett.name") or e.container,
                 category=e.labels.get("sett.category") or "Containers", icon=e.labels.get("sett.icon") or image,
                 description=e.labels.get("sett.description"), host_id=t["host"], address=addr, port=port,
                 scheme=got[0] if got else "tcp", container=e.container,
@@ -286,7 +348,8 @@ class Engine:
         if not url and t["linkable"] and app.kind == "http":
             url = f"{scheme}://{addr}:{port}{app.link_path}"
         return Service(
-            id=f"{addr}:{port}", app=app.id, name=labels.get("sett.name") or app.display_name(e.hint if e else ""),
+            id=f"{addr}:{port}", key=_key(app.id, t["host"], str(port) if app.multi else "", f"{addr}:{port}"),
+            app=app.id, name=labels.get("sett.name") or app.display_name(e.hint if e else ""),
             category=labels.get("sett.category") or app.category, icon=labels.get("sett.icon") or app.icon,
             description=labels.get("sett.description"), host_id=t["host"], address=addr, port=port,
             scheme=scheme, url=url, container=e.container if e else None,
@@ -343,13 +406,18 @@ class Engine:
                 self._check_app(s)
             s.error = None if s.status != "down" else (s.error or "no response")
         except Exception as e:
-            s.status, s.error = "down", str(e)[:160]
+            s.status, s.error = "down", _reason(e)
         s.checked_at = time.time()
+        if s.status == "down":
+            s.down_since = s.down_since or s.checked_at
+        else:
+            s.down_since = None
         if s.status == "up":
             for st in s.stats:
-                self.history.record(f"{s.id}|{st.label}", st.value)
+                self.history.record(f"{s.key}|{st.label}", st.value)
             if s.latency_ms is not None:
-                self.history.record(f"{s.id}|latency", s.latency_ms)
+                self.history.record(f"{s.key}|latency", s.latency_ms)
+        self.notify()
 
     def _check_app(self, s: Service) -> None:
         app = REGISTRY[s.app]
@@ -387,6 +455,7 @@ class Engine:
         with self.lock:
             services = list(self.services.values())
 
+        by_container = {(h.id, c.name): c for h in hosts.values() for c in h.containers}
         dupes = Counter(s.name for s in services)
         same_host = defaultdict(set)
         for s in services:
@@ -398,6 +467,8 @@ class Engine:
                 d.pop(k, None)
             h = hosts.get(s.host_id)
             d["host"] = h.name if h else None
+            c = by_container.get((s.host_id, s.container)) if s.container else None
+            d["health"] = c.health if c else ""
             if dupes[s.name] > 1 and not s.manual:
                 d["name"] = f"{s.name} · {d['host']}" if len(same_host[s.name]) > 1 and d["host"] else f"{s.name} :{s.port}"
             if not s.manual and f"{s.address}:{s.port}" in self.cfg.links:
@@ -407,6 +478,8 @@ class Engine:
                 continue
             d.update({k: o[k] for k in ("name", "description", "url", "category", "icon") if k in o})
             d["stats"] = _shape_stats(s, o)
+            row = self.brock.find(s.key, d["name"], s.name) if self.brock else None
+            d["uptime"] = badge(row, self.cfg.brock, o, self.brock.url + "/") if row else None
             svc_out.append(d)
 
         nodes = sorted((h for h in hosts.values() if h.kind == "node"), key=lambda h: h.name)
@@ -449,8 +522,20 @@ class Engine:
             "views": self.cfg.views,
             "ui": self.cfg.ui,
             "config_error": self.config_error,
-            "providers": list(self.pstatus.values()),
+            "providers": list(self.pstatus.values()) + ([{
+                "name": "brock", "ok": self.brock.ok, "error": self.brock.error, "at": self.brock.at,
+                "detail": self.brock.describe() if self.brock.ok else ""}] if self.brock else []),
         }
+
+    def icon_urls(self) -> set[str]:
+        """Icon URLs something on the page can ask for: a card's icon (labels,
+        [[service]], [[card]]) or an override's. /icons/url fetches only these,
+        so it cannot be used to make Sett download arbitrary addresses."""
+        with self.lock:
+            names = {s.icon for s in self.services.values()}
+        names |= {o.get("icon") for o in self.cfg.overrides.values() if isinstance(o, dict)}
+        names |= {d.get("icon") for d in self.cfg.services + self.cfg.cards + self.cfg.bookmarks}
+        return {n for n in names if isinstance(n, str) and n.startswith(("http://", "https://"))}
 
     def _override(self, s: Service, d: dict) -> dict:
         """[override."<key>"] from the config, most specific key first:
@@ -478,6 +563,7 @@ class Engine:
                     "temp": round(cur["temperature_2m"]), "text": _wmo(cur["weather_code"]),
                     "high": round(day["temperature_2m_max"][0]), "low": round(day["temperature_2m_min"][0]),
                 }
+                self.notify()
             except Exception as e:
                 log.info("weather: %s", e)
             time.sleep(900)
@@ -510,7 +596,7 @@ def _shape_stats(s: Service, o: dict) -> list[dict]:
     for st in s.stats:
         tone = apply_rules(st, tones[st.label]) if st.label in tones else st.tone
         out.append({"label": rename.get(st.label, st.label), "orig": st.label, "value": st.value,
-                    "tone": tone, "series": f"{s.id}|{st.label}"})
+                    "tone": tone, "series": f"{s.key}|{st.label}"})
     if pick is not None:
         by = {**{d["orig"]: d for d in out}, **{d["label"]: d for d in out}}
         out = [by[n] for n in pick if n in by]
@@ -536,6 +622,22 @@ def _card_stats(fields: list, data: dict) -> list[Stat]:
             st.tone = apply_rules(st, f[2])
         out.append(st)
     return out
+
+
+def _reason(e: Exception) -> str:
+    """Words for a failed check: "Connection refused", not "<urlopen error [Errno 111] ...>"."""
+    r = getattr(e, "reason", None) or e
+    text = getattr(r, "strerror", None) or str(r)
+    return (text if isinstance(text, str) else str(r))[:160] or type(e).__name__
+
+
+def _key(app: str, host_id: str | None, part: str, fallback: str) -> str:
+    """A service's stable identity: the app (or container) on a host, which an
+    IP change from DHCP or a remapped port does not alter. Without a host the
+    address is all there is."""
+    if not host_id:
+        return fallback
+    return f"{app}@{host_id}" + (f"/{part}" if part else "")
 
 
 def _rank(s: Service, app) -> tuple:

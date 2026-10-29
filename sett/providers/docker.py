@@ -88,12 +88,14 @@ class DockerProvider(Provider):
             state = c.get("State", "")
             running += state == "running"
             image = c.get("Image", "")
-            host.containers.append(Container(name, image, state, c.get("Status", "")))
+            host.containers.append(Container(name, image, state, c.get("Status", ""), _health(c.get("Status", ""))))
             seen: set[int] = set()
             for p in c.get("Ports") or []:
                 pub = p.get("PublicPort")
                 if not pub or p.get("Type") != "tcp" or pub in seen:
                     continue
+                if _loopback(p.get("IP", "")):
+                    continue   # published to 127.0.0.1 only: nothing else on the network can reach it
                 seen.add(pub)
                 endpoints.append(Endpoint(hid, pub, hint=f"{image} {name}", container=name,
                                           labels=labels, source=self.name))
@@ -106,6 +108,19 @@ class DockerProvider(Provider):
 
     def describe(self) -> str:
         return self._summary
+
+
+_HEALTH = re.compile(r"\((healthy|unhealthy|health: starting)\)")
+
+
+def _health(status: str) -> str:
+    """Docker's HEALTHCHECK result, from the Status text ("Up 3 hours (unhealthy)")."""
+    m = _HEALTH.search(status or "")
+    return {"health: starting": "starting"}.get(m.group(1), m.group(1)) if m else ""
+
+
+def _loopback(ip: str) -> bool:
+    return ip.startswith("127.") or ip == "::1"
 
 
 _HOST_RULE = re.compile(r"Host\(\s*`([^`]+)`")

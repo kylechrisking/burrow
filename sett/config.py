@@ -36,6 +36,8 @@ class Config:
     views: list[dict] = field(default_factory=list)         # [[view]]
     ui: dict = field(default_factory=dict)                  # [ui] accent, wallpaper, density, clock
     secrets: dict[str, dict] = field(default_factory=dict)
+    auth: dict = field(default_factory=dict)                # [auth] sign-in, see auth.py
+    brock: dict = field(default_factory=dict)               # [brock] uptime on cards, see brock.py
     check_interval: float = 15
     identify_interval: float = 300
 
@@ -76,6 +78,8 @@ def load() -> Config:
         search=raw.get("search", ""),
         views=raw.get("view", []),
         ui=raw.get("ui", {}),
+        auth=raw.get("auth", {}),
+        brock=raw.get("brock", {}),
         config_dir=path.parent,
         check_interval=float(raw.get("check_interval", 15)),
         identify_interval=float(raw.get("identify_interval", 300)),
@@ -102,8 +106,33 @@ def load() -> Config:
         if os.name == "posix" and sp.stat().st_mode & 0o077:
             log.warning("secrets file %s is readable by group/other; chmod 600 it", sp)
         log.info("secrets: %d app(s) from %s", len(cfg.secrets), sp)
+    if isinstance(cfg.secrets.get("brock"), dict):   # the token can live with the other secrets
+        cfg.brock = {**cfg.brock, **cfg.secrets["brock"]}
     cfg.files = files
     return cfg
+
+
+def data_dir() -> Path | None:
+    """Where Sett keeps what should outlive a restart (sparkline history, the
+    session key). SETT_DATA if set, else /data when it is mounted and writable,
+    else the cache folder. None when nothing is writable: Sett still runs."""
+    cands = [os.environ.get("SETT_DATA"), "/data",
+             str(Path(os.environ.get("SETT_CACHE", "/tmp/sett-cache")))]
+    for i, c in enumerate(cands):
+        if not c:
+            continue
+        d = Path(c)
+        if i == 1 and not d.is_dir():    # /data is only used when someone mounted it
+            continue
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            probe = d / ".write-test"
+            probe.write_bytes(b"")
+            probe.unlink()
+            return d
+        except OSError:
+            continue
+    return None
 
 
 def _mtime(p: Path) -> float:

@@ -11,6 +11,7 @@ class Container:
     image: str
     state: str          # running / exited / ...
     status: str = ""    # "Up 3 hours (healthy)"
+    health: str = ""    # healthy | unhealthy | starting, when the image has a HEALTHCHECK
 
 
 @dataclass
@@ -36,6 +37,7 @@ class Host:
     containers: list[Container] = field(default_factory=list)
     aliases: list[str] = field(default_factory=list)       # other names this host is known by (Docker /info Name)
     tags: list[str] = field(default_factory=list)          # Proxmox tags; "sett-hide" hides the host
+    health: list[dict] = field(default_factory=list)       # Proxmox: ZFS pools, disks, last backup ({label, value, tone, detail})
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -92,6 +94,11 @@ class Service:
     fields: list | None = None        # [[card]]: [[spec, label], ...]
     refresh: float = 0                # [[card]]: seconds between fetches (0 = every check)
     matched: bool = True              # fingerprint matched (False: trusted on the image name alone)
+    key: str = ""                     # stable identity for pins, hides and history: survives an IP change
+    down_since: float | None = None   # when the current outage started
+
+    def __post_init__(self):
+        self.key = self.key or self.id
 
     @property
     def base(self) -> str:

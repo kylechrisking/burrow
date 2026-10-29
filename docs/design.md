@@ -138,9 +138,24 @@ layout CSS only reads variables, so a theme can't break the layout. The first
 line, `/* name: Midnight */`, is what the picker shows. Drop a new file in and
 it appears.
 
+## Live updates, history and sign-in
+
+- `/api/events` is a server-sent event stream. The engine bumps a version
+  whenever a provider, an identify pass or a check finishes; each open stream
+  waits on that, coalesces a burst into one message, and sends the state only
+  if it changed. A comment every 20 seconds keeps proxies from closing it.
+  The page falls back to polling `/api/state` if the stream won't stay up.
+- Services have a stable `key` (`sonarr@pve:lxc/105`): the app on a host,
+  not its address. Pins, hides and sparkline history use it, so a DHCP change
+  loses nothing. Old address-based pins are moved over in the browser.
+- History is saved to the data folder (`SETT_DATA`, else a mounted `/data`,
+  else the cache folder) every five minutes and on shutdown.
+- `auth.py` is standard library only: PBKDF2 password hashes, RFC 6238 codes
+  with one step of drift and no replays, and HMAC-signed session cookies that
+  embed a fingerprint of the user's password hash and TOTP secret, so changing
+  either ends their sessions. The `/icons/url` fetcher only accepts URLs that
+  the config or a label actually uses.
+
 ## What's next
 
-- Server-sent events instead of polling.
-- Proxmox backup jobs, ZFS pool health and SMART data, all of which are
-  readable with PVEAuditor.
 - More fingerprints, from whatever people run.

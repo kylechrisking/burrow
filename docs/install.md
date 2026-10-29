@@ -9,6 +9,7 @@ everything", and you can stop after any of them.
 - [3. More Docker hosts](#3-more-docker-hosts)
 - [4. API keys for stats](#4-api-keys-for-stats)
 - [5. Put it behind your reverse proxy](#5-put-it-behind-your-reverse-proxy)
+- [6. Sign-in and two-factor codes](#6-sign-in-and-two-factor-codes)
 - [Running without Docker](#running-without-docker)
 - [Updating](#updating)
 - [Troubleshooting](#troubleshooting)
@@ -146,8 +147,8 @@ the change within a few seconds.
 
 ## 5. Put it behind your reverse proxy
 
-Sett has no login of its own, so either keep it on your LAN or put it behind
-whatever already guards your other apps.
+Keep Sett on your LAN, put it behind whatever already guards your other apps,
+or turn on its own sign-in (next section).
 
 Caddy:
 
@@ -167,7 +168,54 @@ labels:
 ```
 
 In Nginx Proxy Manager, add a proxy host pointing at port 8099. Nothing special
-is needed: no websockets, and it works under any hostname.
+is needed: no websockets, and it works under any hostname. The page gets live
+updates over server-sent events; Sett tells Nginx not to buffer them, and if
+some other proxy does, the page notices and falls back to polling.
+
+## 6. Sign-in and two-factor codes
+
+Sign-in is off until you add a user. Make one (inside the container, or
+anywhere with a checkout):
+
+```bash
+docker exec -it sett python -m sett add-user kyle --totp
+```
+
+It asks for a password and prints an `[auth.users.kyle]` block to paste into
+the secrets file (or `sett.toml`). With `--totp` it also draws a QR code in the
+terminal for your authenticator app (Aegis, 2FAS, Google Authenticator,
+1Password...), plus the key and `otpauth://` link if you'd rather type or paste
+it, and sign-in then asks for the 6-digit code too. If your terminal mangles
+the QR code, add `--svg /config/kyle-qr.svg` to save it as an image (delete it
+once scanned).
+Run it again for each person who needs an account. Changing someone's password
+or key signs them out everywhere.
+
+Mount a `/data` folder (the compose file does) so sign-ins survive a restart.
+
+Already have Authelia, Authentik or oauth2-proxy in front? Let Sett trust the
+user name it passes on, but only from that proxy's address:
+
+```toml
+[auth]
+proxy_header = "Remote-User"
+trusted_proxies = ["192.168.1.2/32"]
+```
+
+Scripts and monitoring tools can read `/api/status` (a compact up/down list)
+with a token instead of a session:
+
+```toml
+[auth]
+api_tokens = { agent = "a-long-random-string" }
+```
+
+```bash
+curl -H "Authorization: Bearer a-long-random-string" http://sett:8099/api/status
+```
+
+After eight wrong attempts from one address, sign-in is refused from it for
+fifteen minutes.
 
 ## Running without Docker
 

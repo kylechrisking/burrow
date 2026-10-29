@@ -14,6 +14,9 @@ token_file = "/secrets/proxmox.token"   # one line: root@pam!sett=xxxxxxxx-....
 # TLS is not verified (Proxmox ships a self-signed cert).
 # VMs without the QEMU guest agent or a static ipconfig: tell it their IP.
 # guest_addresses = { 105 = "192.168.1.105" }
+# Node cards show ZFS pool health, SMART results and the last backup. Mark a
+# backup older than this many hours as a warning (0 = never):
+# backup_max_age_hours = 30
 
 # Docker: the local socket is picked up automatically when mounted.
 # Remote engines: put tecnativa/docker-socket-proxy (CONTAINERS=1 INFO=1) in front.
@@ -30,6 +33,30 @@ hosts = []
 
 [secrets]
 file = "/secrets/apps.toml"
+
+# Sign-in. Off until a user, a proxy header or an API token is set. This table
+# can live in the secrets file instead, which keeps TOTP secrets out of here.
+# Make a user with:  python -m sett add-user kyle --totp
+# [auth]
+# session_days = 30
+# proxy_header = "Remote-User"          # Authelia/Authentik/oauth2-proxy sign-in, trusted
+# trusted_proxies = ["192.168.1.2/32"]  # only from these addresses
+# api_tokens = { agent = "long-random-string" }   # for scripts: Authorization: Bearer ...
+# [auth.users.kyle]
+# password_hash = "pbkdf2_sha256$600000$..."
+# totp_secret = "BASE32SECRET"           # optional: asks for a 6-digit code as well
+
+# Uptime from Brock (github.com/kylechrisking/brock) on each card. Optional.
+# [brock]
+# url = "http://192.168.1.31:8098"
+# token = "..."            # one of Brock's [tokens]; better in the secrets file under [brock]
+# window = "30d"           # 24h | 7d | 30d | 90d
+# style = "tag"            # tag | stat | bars
+# warn_below = 99.5
+# bad_below = 98
+# hide_perfect = false     # no badge on cards at 100%
+# link = true              # the badge opens Brock's status page
+# Per card: [override."Plex"] uptime = false, or uptime_window = "7d", uptime_style = "bars"
 
 [hide]
 apps = []                   # app ids, e.g. ["flaresolverr"]
