@@ -473,6 +473,9 @@ class Engine:
                 d["name"] = f"{s.name} · {d['host']}" if len(same_host[s.name]) > 1 and d["host"] else f"{s.name} :{s.port}"
             if not s.manual and f"{s.address}:{s.port}" in self.cfg.links:
                 d["url"] = self.cfg.links[f"{s.address}:{s.port}"]
+            elif not s.manual and f"{s.address}:{s.port}" in self.cfg.caddy_links and _is_address_link(d.get("url"), s):
+                # Caddy proxies a name to this address: link the name, keeping the app's path (Plex's /web).
+                d["url"] = self.cfg.caddy_links[f"{s.address}:{s.port}"] + (urlparse(d["url"]).path if d.get("url") else "")
             o = self._override(s, d)
             if o.get("hide"):
                 continue
@@ -635,6 +638,15 @@ def _reason(e: Exception) -> str:
     r = getattr(e, "reason", None) or e
     text = getattr(r, "strerror", None) or str(r)
     return (text if isinstance(text, str) else str(r))[:160] or type(e).__name__
+
+
+def _is_address_link(url: str | None, s: Service) -> bool:
+    """True when a card's link is just its own address (so a nicer name may replace it),
+    not one somebody chose with a label."""
+    if not url:
+        return True
+    u = urlparse(url)
+    return u.hostname == s.address and (u.port or (443 if u.scheme == "https" else 80)) == s.port
 
 
 def _key(app: str, host_id: str | None, part: str, fallback: str) -> str:

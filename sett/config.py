@@ -28,6 +28,7 @@ class Config:
     bookmarks: list[dict] = field(default_factory=list)     # [[bookmark]]
     overrides: dict[str, dict] = field(default_factory=dict)  # [override."app" | "app@host" | "Name"]
     links: dict[str, str] = field(default_factory=dict)     # "ip:port" -> URL shown on the card
+    caddy_links: dict[str, str] = field(default_factory=dict)  # "ip:port" -> site URL, from [caddy] file
     categories: list[str] = field(default_factory=list)     # display order
     weather: dict = field(default_factory=dict)
     search: str = ""                                        # "google" | "duckduckgo" | "" (filter only)
@@ -109,6 +110,11 @@ def load() -> Config:
     for key in ("brock", "vitals"):   # the token can live with the other secrets (under either name)
         if isinstance(cfg.secrets.get(key), dict):
             cfg.vitals = {**cfg.vitals, **cfg.secrets[key]}
+    caddy_file = (raw.get("caddy") or {}).get("file") or env.get("SETT_CADDYFILE")
+    if caddy_file:
+        from . import caddy
+        files[str(caddy_file)] = _mtime(Path(caddy_file))   # edits to the Caddyfile reload too
+        cfg.caddy_links = caddy.load(caddy_file)
     cfg.files = files
     return cfg
 

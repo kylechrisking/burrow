@@ -58,6 +58,11 @@ file = "/secrets/apps.toml"
 # link = true              # the badge opens Vitals' status page
 # Per card: [override."Plex"] uptime = false, or uptime_window = "7d", uptime_style = "bars"
 
+# Your Caddyfile, so cards link to the names Caddy serves (http://sonarr.homelab)
+# instead of IP:port. Mount it read-only; edits are picked up automatically.
+# [caddy]
+# file = "/config/Caddyfile"
+
 [hide]
 apps = []                   # app ids, e.g. ["flaresolverr"]
 names = []                  # card names

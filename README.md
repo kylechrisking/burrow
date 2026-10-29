@@ -53,6 +53,10 @@ has the whole list and says which cards show stats and what they need.
 Anything it can't identify still gets a card with the container name and
 whether it's up, so nothing you've published goes missing.
 
+Run Caddy with a Caddyfile? Mount it and point Sett at it (`[caddy] file =
+"/config/Caddyfile"`): every site block that proxies to an app gives that
+app's card its name, so Sonarr opens `http://sonarr.homelab`, not an IP and port.
+
 If you're already using Homepage labels on your containers (`homepage.name`,
 `homepage.icon` and friends), Sett reads those. It also turns Traefik `Host()`
 rules and caddy-docker-proxy labels into links, so cards point at

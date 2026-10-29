@@ -228,6 +228,64 @@ class Qr(unittest.TestCase):
             qr.encode("x" * 300)
 
 
+CADDYFILE = """
+{
+    auto_https off   # plain HTTP on .homelab, by choice
+}
+
+(proxy_headers) {
+    header_up X-Real-IP {remote_host}
+}
+
+sonarr.homelab {
+    reverse_proxy 10.0.0.130:8989
+}
+http://plex.homelab, plex.lan {
+    import proxy_headers
+    reverse_proxy http://10.0.0.130:32400 {
+        header_up Host {upstream_hostport}
+    }
+}
+home.homelab {
+    handle /api/* {
+        reverse_proxy 10.0.0.131:8099
+    }
+    handle {
+        reverse_proxy 10.0.0.131:8099
+    }
+}
+recipes.homelab {
+    reverse_proxy tandoor:8080
+}
+:8443 {
+    reverse_proxy 10.0.0.9:443
+}
+"""
+
+
+class Caddy(unittest.TestCase):
+    def test_links_from_a_caddyfile(self):
+        from sett import caddy
+        got = caddy.links(CADDYFILE, resolve=lambda n: {"tandoor": "10.0.0.140"}.get(n))
+        self.assertEqual(got, {"10.0.0.130:8989": "http://sonarr.homelab", "10.0.0.130:32400": "http://plex.homelab",
+                               "10.0.0.131:8099": "http://home.homelab", "10.0.0.140:8080": "http://recipes.homelab"})
+
+    def test_https_unless_turned_off(self):
+        from sett import caddy
+        self.assertEqual(caddy.links("app.example.com {\n reverse_proxy 10.0.0.5:3000\n}\n", resolve=lambda n: None),
+                         {"10.0.0.5:3000": "https://app.example.com"})
+
+    def test_card_link_uses_the_name_but_labels_win(self):
+        e = Engine(Config(caddy_links={"10.0.0.130:32400": "http://plex.homelab", "10.0.0.130:8989": "http://sonarr.homelab"}))
+        e.services = {
+            "p": Service("10.0.0.130:32400", "plex", "Plex", "Media", "plex", None, "10.0.0.130", 32400,
+                         url="http://10.0.0.130:32400/web"),
+            "s": Service("10.0.0.130:8989", "sonarr", "Sonarr", "Media", "sonarr", None, "10.0.0.130", 8989,
+                         url="https://tv.example.com")}
+        got = {d["name"]: d["url"] for d in e.state()["services"]}
+        self.assertEqual(got, {"Plex": "http://plex.homelab/web", "Sonarr": "https://tv.example.com"})
+
+
 class VitalsUptime(unittest.TestCase):
     ROW = {"id": "sett:sonarr@pve:lxc/105", "name": "Sonarr (media)",
            "uptime": {"24h": 100.0, "7d": 99.2, "30d": 97.5, "90d": 99.9}, "bars": [100.0, None, 90.0]}
